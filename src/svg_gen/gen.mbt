@@ -727,13 +727,16 @@ fn stmt_svg(
         "\" cy=\"" + (next_y + 5.0).to_string() +
         "\" r=\"3.5\" fill=\"rgba(160,200,255,0.7)\"/>",
       )
-      // ドロップゾーン: chain の間に挿入
+      // ドロップゾーン: chain の間に挿入 (indent して親のnotchと重ならないように)
       let dz_y = sz.h - 2.0
       let dz_h = notch_h + 8.0
+      let dz_x = indent - 4.0
+      let dz_w = sz.w - dz_x - 4.0
       buf.write_string(
         "<rect class=\"drop-zone\" data-insert-after=\"" + block.id +
-        "\" data-accepts=\"statement\" x=\"0\" y=\"" + dz_y.to_string() +
-        "\" width=\"" + sz.w.to_string() +
+        "\" data-accepts=\"statement\" x=\"" + dz_x.to_string() +
+        "\" y=\"" + dz_y.to_string() +
+        "\" width=\"" + (if dz_w > 40.0 { dz_w } else { 40.0 }).to_string() +
         "\" height=\"" + dz_h.to_string() +
         "\" rx=\"3\" fill=\"transparent\" stroke=\"none\"/>",
       )
@@ -742,13 +745,16 @@ fn stmt_svg(
       close_g(buf)
     }
     None => {
-      // body 末尾ドロップゾーン (has_next だが next が空)
+      // body 末尾ドロップゾーン: indent して親の bottom notch と重ならないようにする
       if block.has_next {
-        let dz_y = sz.h
+        let dz_y = sz.h - 12.0
+        let dz_x = indent - 4.0
+        let dz_w = sz.w - dz_x - 4.0
         buf.write_string(
           "<rect class=\"drop-zone\" data-insert-after=\"" + block.id +
-          "\" data-accepts=\"statement\" x=\"0\" y=\"" + dz_y.to_string() +
-          "\" width=\"" + sz.w.to_string() +
+          "\" data-accepts=\"statement\" x=\"" + dz_x.to_string() +
+          "\" y=\"" + dz_y.to_string() +
+          "\" width=\"" + (if dz_w > 40.0 { dz_w } else { 40.0 }).to_string() +
           "\" height=\"16\" rx=\"3\" fill=\"" + empty_fill +
           "\" stroke=\"" + empty_stroke +
           "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
