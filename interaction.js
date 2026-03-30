@@ -225,8 +225,11 @@ export function setupInteraction(svgEl) {
         el: blockEl,
         ox: pt.x - absPos.x,
         oy: pt.y - absPos.y,
+        startX: absPos.x,
+        startY: absPos.y,
         lastX: absPos.x,
         lastY: absPos.y,
+        moved: false,
       };
 
       highlightSlots(blockType);
@@ -243,10 +246,14 @@ export function setupInteraction(svgEl) {
       const pt = svgPoint(e.clientX, e.clientY);
       const nx = pt.x - state.dragging.ox;
       const ny = pt.y - state.dragging.oy;
+      // 移動距離チェック
+      const dx = nx - state.dragging.startX;
+      const dy = ny - state.dragging.startY;
+      if (Math.hypot(dx, dy) > 5) state.dragging.moved = true;
       state.dragging.el.setAttribute('transform', `translate(${nx},${ny})`);
       state.dragging.lastX = nx;
       state.dragging.lastY = ny;
-      updateSnapTarget(pt);
+      if (state.dragging.moved) updateSnapTarget(pt);
     } else if (state.panning) {
       const dx = (e.clientX - state.panStart.x) / state.zoom;
       const dy = (e.clientY - state.panStart.y) / state.zoom;
@@ -270,6 +277,22 @@ export function setupInteraction(svgEl) {
           mp.setAttribute('stroke', mp._origStroke);
           mp.setAttribute('stroke-width', mp._origStrokeWidth || '1.5');
         }
+      }
+
+      // 動いてなければ何もしない (クリックのみ) → rerender で元の状態に戻す
+      if (!state.dragging.moved) {
+        clearHighlights();
+        state.dragging = null;
+        const savedVB = { ...state.viewBox };
+        api()?.rerender();
+        requestAnimationFrame(() => {
+          const newSvg = document.querySelector('svg');
+          if (newSvg) {
+            newSvg.setAttribute('viewBox', `${savedVB.x} ${savedVB.y} ${savedVB.w} ${savedVB.h}`);
+            setupInteraction(newSvg);
+          }
+        });
+        return;
       }
 
       // モデル更新: まず親から切断
