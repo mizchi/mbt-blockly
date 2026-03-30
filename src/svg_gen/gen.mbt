@@ -604,6 +604,51 @@ fn stmt_svg(
     stroke +
     "\" stroke-width=\"1.5\"/>",
   )
+  // top notch ハイライト (凸部分を明るい線で強調)
+  let nw = 20.0
+  let nh = notch_h
+  let notch_color = "rgba(160,200,255,0.6)"
+  buf.write_string(
+    "<path d=\"M " +
+    (nw - 4.0).to_string() +
+    " 0 L " +
+    nw.to_string() +
+    " " +
+    (-nh).to_string() +
+    " L " +
+    (nw + 12.0).to_string() +
+    " " +
+    (-nh).to_string() +
+    " L " +
+    (nw + 16.0).to_string() +
+    " 0\" fill=\"none\" stroke=\"" +
+    notch_color +
+    "\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+  )
+  // bottom notch ハイライト (凹部分)
+  if block.has_next {
+    buf.write_string(
+      "<path d=\"M " +
+      (nw - 4.0).to_string() +
+      " " +
+      sz.h.to_string() +
+      " L " +
+      nw.to_string() +
+      " " +
+      (sz.h - nh).to_string() +
+      " L " +
+      (nw + 12.0).to_string() +
+      " " +
+      (sz.h - nh).to_string() +
+      " L " +
+      (nw + 16.0).to_string() +
+      " " +
+      sz.h.to_string() +
+      "\" fill=\"none\" stroke=\"" +
+      notch_color +
+      "\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+    )
+  }
   buf.write_string(
     "<text x=\"12\" y=\"20\" fill=\"" + text_color + "\" font-size=\"13\" font-family=\"monospace\" font-weight=\"bold\">" +
     esc(block.label) +
