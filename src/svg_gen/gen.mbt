@@ -285,10 +285,25 @@ fn extract_operator(label : String) -> String {
   }
 }
 
-///| 空スロット描画
-fn render_empty_slot(buf : StringBuilder, x : Double) -> Unit {
+///| 空スロット描画 (expression 用、inline)
+fn render_empty_slot(
+  buf : StringBuilder,
+  x : Double,
+  parent_id? : String,
+  slot_name? : String,
+  accepts? : String,
+) -> Unit {
+  let parent_id = parent_id.or("")
+  let slot_name = slot_name.or("")
+  let accepts = accepts.or("expression")
   buf.write_string(
-    "<rect x=\"" +
+    "<rect class=\"empty-slot\" data-parent=\"" +
+    parent_id +
+    "\" data-slot=\"" +
+    slot_name +
+    "\" data-accepts=\"" +
+    accepts +
+    "\" x=\"" +
     x.to_string() +
     "\" y=\"4\" width=\"" +
     empty_w.to_string() +
@@ -462,7 +477,7 @@ fn expr_svg(
         cx += cs.w + 4.0
       }
       None => {
-        render_empty_slot(buf, cx)
+        render_empty_slot(buf, cx, parent_id=block.id, slot_name="left")
         cx += empty_w + 4.0
       }
     }
@@ -490,7 +505,7 @@ fn expr_svg(
         block_to_svg(child, ws, buf)
         close_g(buf)
       }
-      None => render_empty_slot(buf, cx)
+      None => render_empty_slot(buf, cx, parent_id=block.id, slot_name="right")
     }
   } else {
     // prefix expression (fn_call 等)
@@ -520,7 +535,7 @@ fn expr_svg(
           cx += cs.w + 4.0
         }
         None => {
-          render_empty_slot(buf, cx)
+          render_empty_slot(buf, cx, parent_id=block.id, slot_name=slot.name)
           cx += empty_w + 4.0
         }
       }
@@ -574,9 +589,19 @@ fn stmt_svg(
         block_to_svg(child, ws, buf)
         close_g(buf)
       }
-      None =>
+      None => {
+        let accepts_str = match slot.accepts {
+          @model.Expression => "expression"
+          @model.Statement => "statement"
+        }
         buf.write_string(
-          "<rect x=\"" +
+          "<rect class=\"empty-slot\" data-parent=\"" +
+          block.id +
+          "\" data-slot=\"" +
+          slot.name +
+          "\" data-accepts=\"" +
+          accepts_str +
+          "\" x=\"" +
           indent.to_string() +
           "\" y=\"" +
           (sy + 6.0).to_string() +
@@ -586,6 +611,7 @@ fn stmt_svg(
           empty_h.to_string() +
           "\" rx=\"4\" fill=\"" + empty_fill + "\" stroke=\"" + empty_stroke + "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
         )
+      }
     }
   }
   // next
