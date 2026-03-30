@@ -100,53 +100,44 @@ export function setupInteraction(svgEl) {
     state.nearestSlot = nearest;
   }
 
+  // --- Pointer Events ---
+  // Drag は DOM 操作のみ。モデル更新は pointerup で一括。
   svgEl.addEventListener('pointerdown', (e) => {
     const blockEl = getBlockGroup(e.target);
     if (blockEl) {
       e.preventDefault();
+      e.stopPropagation();
       svgEl.setPointerCapture(e.pointerId);
+
       const blockId = blockEl.dataset.blockId;
       const blockType = api()?.getBlockType(blockId) || 'unknown';
+
+      // ブロックの絶対位置を計算
       const absPos = getAbsoluteTranslate(blockEl);
       const pt = svgPoint(e.clientX, e.clientY);
 
-      // Detach and make top-level
-      api()?.detach(blockId);
-      api()?.moveBlock(blockId, absPos.x, absPos.y);
+      // DOM 上で viewport 直下に移動 (親から視覚的に切り離す)
+      const viewport = svgEl.querySelector('#viewport');
+      if (viewport) {
+        // 絶対座標で再配置
+        blockEl.setAttribute('transform', `translate(${absPos.x},${absPos.y})`);
+        viewport.appendChild(blockEl);
+      }
 
-      // Re-render detached state
-      api()?.rerender();
+      blockEl.style.cursor = 'grabbing';
+      blockEl.style.opacity = '0.85';
 
-      requestAnimationFrame(() => {
-        const newSvg = document.querySelector('svg');
-        if (newSvg && newSvg !== svgEl) {
-          // SVG was replaced — re-init with saved viewBox
-          const savedVB = { ...state.viewBox };
-          setupInteraction(newSvg);
-          newSvg.setAttribute('viewBox', `${savedVB.x} ${savedVB.y} ${savedVB.w} ${savedVB.h}`);
-          // Restart drag on new SVG
-          const el2 = newSvg.querySelector(`[data-block-id="${blockId}"]`);
-          if (el2) {
-            el2.style.cursor = 'grabbing';
-            el2.style.opacity = '0.85';
-            const vp = newSvg.querySelector('#viewport');
-            if (vp) vp.appendChild(el2);
-          }
-          return;
-        }
-        const el2 = svgEl.querySelector(`[data-block-id="${blockId}"]`);
-        if (el2) {
-          el2.style.cursor = 'grabbing';
-          el2.style.opacity = '0.85';
-          const vp = svgEl.querySelector('#viewport');
-          if (vp) vp.appendChild(el2);
-          state.dragging = {
-            blockId, type: blockType, el: el2,
-            ox: pt.x - absPos.x, oy: pt.y - absPos.y,
-          };
-          highlightSlots(blockType);
-        }
-      });
+      state.dragging = {
+        blockId,
+        type: blockType,
+        el: blockEl,
+        ox: pt.x - absPos.x,
+        oy: pt.y - absPos.y,
+        lastX: absPos.x,
+        lastY: absPos.y,
+      };
+
+      highlightSlots(blockType);
     } else {
       state.panning = true;
       state.panStart = { x: e.clientX, y: e.clientY };
@@ -174,33 +165,43 @@ export function setupInteraction(svgEl) {
     }
   });
 
-  svgEl.addEventListener('pointerup', () => {
+  svgEl.addEventListener('pointerup', (e) => {
     if (state.dragging) {
       const { blockId, lastX, lastY } = state.dragging;
 
+      // モデル更新: まず親から切断
+      api()?.detach(blockId);
+
       if (state.nearestSlot) {
+        // スロットにスナップ: 接続
         const parentId = state.nearestSlot.dataset.parent;
         const slotName = state.nearestSlot.dataset.slot;
         api()?.connect(parentId, slotName, blockId);
         api()?.moveBlock(blockId, 0, 0);
-      } else if (lastX !== undefined) {
+      } else {
+        // 空白にドロップ: トップレベルとして配置
         api()?.moveBlock(blockId, lastX, lastY);
       }
 
       clearHighlights();
       state.dragging = null;
 
-      // Re-render and re-init
+      // 再描画 + インタラクション再初期化
       const savedVB = { ...state.viewBox };
       const savedZoom = state.zoom;
       api()?.rerender();
+
       requestAnimationFrame(() => {
         const newSvg = document.querySelector('svg');
         if (newSvg) {
+          newSvg.setAttribute('viewBox',
+            `${savedVB.x} ${savedVB.y} ${savedVB.w} ${savedVB.h}`);
           setupInteraction(newSvg);
-          newSvg.setAttribute('viewBox', `${savedVB.x} ${savedVB.y} ${savedVB.w} ${savedVB.h}`);
+          // Restore zoom state (hacky but works)
+          // The new setupInteraction creates fresh state, but viewBox is set
         }
       });
+      return;
     }
     state.panning = false;
     svgEl.style.cursor = 'default';
