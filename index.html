@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mbt-blockly</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #11111b; }
+    #app { width: 100%; height: 100%; }
+    @keyframes snap-pulse {
+      0%, 100% { opacity: 0.4; stroke-dashoffset: 0; }
+      50% { opacity: 0.85; stroke-dashoffset: 8; }
+    }
+    .snap-preview {
+      animation: snap-pulse 0.8s ease-in-out infinite;
+      pointer-events: none;
+      transition: x 0.15s, y 0.15s, width 0.15s, height 0.15s;
+    }
+  </style>
+  <script type="module" crossorigin src="/mbt-blockly/assets/index-8PVWOU_c.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+</html>
