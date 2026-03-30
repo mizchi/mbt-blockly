@@ -5,7 +5,8 @@
     "mizchi/luna": "0.18.3",
     "mizchi/js": "0.10.14",
     "mizchi/signals": "0.6.4",
-    "moonbitlang/x": "0.4.40"
+    "moonbitlang/x": "0.4.40",
+    "mizchi/svg": "0.2.0"
   },
   "readme": "README.md",
   "repository": "https://github.com/mizchi/mbt-blockly",

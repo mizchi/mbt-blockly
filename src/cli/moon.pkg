@@ -1,0 +1,10 @@
+import {
+  "mizchi/mbt-blockly/model",
+  "mizchi/mbt-blockly/svg_gen",
+  "mizchi/svg",
+}
+
+options(
+  "is-main": true,
+  "supported-targets": "js",
+)
