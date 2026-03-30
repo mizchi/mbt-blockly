@@ -365,6 +365,7 @@ fn stmt_path(w : Double, h : Double, has_next : Bool) -> String {
     " " +
     (h - r).to_string()
   if has_next {
+    // bottom: 凹ソケット (次のブロックの top 凸を受ける)
     d += " Q " +
       w.to_string() +
       " " +
@@ -380,11 +381,11 @@ fn stmt_path(w : Double, h : Double, has_next : Bool) -> String {
       " L " +
       (nw + 12.0).to_string() +
       " " +
-      (h + nh).to_string() +
+      (h - nh).to_string() +
       " L " +
       nw.to_string() +
       " " +
-      (h + nh).to_string() +
+      (h - nh).to_string() +
       " L " +
       (nw - 4.0).to_string() +
       " " +
