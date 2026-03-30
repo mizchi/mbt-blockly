@@ -19,6 +19,7 @@ export function setupInteraction(svgEl) {
       `${state.viewBox.x} ${state.viewBox.y} ${state.viewBox.w} ${state.viewBox.h}`);
   }
 
+  // 最も近い data-block-id 先祖を返す
   function getBlockGroup(target) {
     let el = target;
     while (el && el !== svgEl) {
@@ -26,6 +27,22 @@ export function setupInteraction(svgEl) {
       el = el.parentElement;
     }
     return null;
+  }
+
+  // viewport 直下のトップレベルブロックを返す
+  // ネスト内をクリックしても、トップレベルの親を返す
+  function getTopLevelBlock(target) {
+    const viewport = svgEl.querySelector('#viewport');
+    if (!viewport) return null;
+    let el = target;
+    let topLevel = null;
+    while (el && el !== svgEl) {
+      if (el.parentElement === viewport && el.dataset && el.dataset.blockId) {
+        topLevel = el;
+      }
+      el = el.parentElement;
+    }
+    return topLevel;
   }
 
   function svgPoint(cx, cy) {
@@ -188,7 +205,7 @@ export function setupInteraction(svgEl) {
   // --- Pointer Events ---
   // Drag は DOM 操作のみ。モデル更新は pointerup で一括。
   svgEl.addEventListener('pointerdown', (e) => {
-    const blockEl = getBlockGroup(e.target);
+    const blockEl = getTopLevelBlock(e.target);
     if (blockEl) {
       e.preventDefault();
       e.stopPropagation();
