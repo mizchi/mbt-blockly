@@ -1,11 +1,45 @@
 ///| mbt-blockly メインエントリポイント
+///
+/// グローバル Workspace を保持し、JS から操作関数を呼んで再描画する。
 
 extern "js" fn set_inner_html(el : @dom.Element, html : String) -> Unit =
   #|(el, html) => { el.innerHTML = html; }
 
+extern "js" fn register_api(
+  detach : (String) -> Unit,
+  connect : (String, String, String) -> Unit,
+  connect_next : (String, String) -> Unit,
+  move_block : (String, Double, Double) -> Unit,
+  rerender : () -> Unit,
+  get_block_type : (String) -> String,
+) -> Unit =
+  #|(detach, connect, connectNext, moveBlock, rerender, getBlockType) => {
+  #| var o = Object.create(null);
+  #| o.detach = detach;
+  #| o.connect = connect;
+  #| o.connectNext = connectNext;
+  #| o.moveBlock = moveBlock;
+  #| o.rerender = rerender;
+  #| o.getBlockType = getBlockType;
+  #| window.__mbt = o;
+  #|}
+
+///| グローバル状態
+let global_ws : Ref[@model.Workspace] = { val: @model.Workspace::new() }
+
+///| SVG を再描画
+fn render() -> Unit {
+  let svg_str = @svg_gen.workspace_to_svg(global_ws.val, 1200, 800)
+  let doc = @dom.document()
+  guard doc.getElementById("app") is Some(el) else { return }
+  set_inner_html(el, svg_str)
+}
+
+///|
 fn main {
   let catalog = @model.create_block_catalog()
   let ws = @model.Workspace::new()
+  global_ws.val = ws
 
   guard catalog.get("fn_def") is Some(fn_def) else { return }
   guard catalog.get("let_binding") is Some(let_def) else { return }
@@ -53,7 +87,7 @@ fn main {
   ws.connect_to_input(add2, "right", vb)
 
   // fn greet(name) { let msg = "Hello, " + name; println(msg) }
-  let fn3 = ws.create_block(fn_def, 30.0, 400.0, label="fn greet(name)")
+  let fn3 = ws.create_block(fn_def, 30.0, 450.0, label="fn greet(name)")
   let let2 = ws.create_block(let_def, 0.0, 0.0, label="let msg =")
   ws.connect_to_input(fn3, "body", let2)
   let concat = ws.create_block(bin_def, 0.0, 0.0)
@@ -67,10 +101,27 @@ fn main {
   let vmsg = ws.create_block(id_def, 0.0, 0.0, value="msg")
   ws.connect_to_input(call1, "arg0", vmsg)
 
-  // Render + setup interaction
-  let svg_str = @svg_gen.workspace_to_svg(ws, 1000, 700)
-  let doc = @dom.document()
-  guard doc.getElementById("app") is Some(el) else { return }
-  set_inner_html(el, svg_str)
-  // interaction は main.ts 側で setupInteraction() を呼ぶ
+  // JS API を登録
+  register_api(
+    fn(block_id) { global_ws.val.detach_block(block_id) },
+    fn(parent_id, slot_name, child_id) {
+      global_ws.val.connect_to_input(parent_id, slot_name, child_id)
+    },
+    fn(block_id, next_id) { global_ws.val.connect_next(block_id, next_id) },
+    fn(block_id, x, y) { global_ws.val.move_block(block_id, x, y) },
+    fn() { render() },
+    fn(block_id) -> String {
+      match global_ws.val.blocks.get(block_id) {
+        Some(block) =>
+          match block.connector {
+            @model.Expression => "expression"
+            @model.Statement => "statement"
+          }
+        None => "unknown"
+      }
+    },
+  )
+
+  // 初回描画
+  render()
 }

@@ -224,6 +224,24 @@ fn open_g(buf : StringBuilder, x : Double, y : Double) -> Unit {
 }
 
 ///|
+fn open_block_g(
+  buf : StringBuilder,
+  x : Double,
+  y : Double,
+  block_id : String,
+) -> Unit {
+  buf.write_string(
+    "<g data-block-id=\"" +
+    block_id +
+    "\" transform=\"translate(" +
+    x.to_string() +
+    "," +
+    y.to_string() +
+    ")\">",
+  )
+}
+
+///|
 fn close_g(buf : StringBuilder) -> Unit {
   buf.write_string("</g>")
 }
@@ -432,7 +450,7 @@ fn expr_svg(
   sz : Size,
   buf : StringBuilder,
 ) -> Unit {
-  open_g(buf, block.x, block.y)
+  open_block_g(buf, block.x, block.y, block.id)
   let fill = block_fill(block.color_hue)
   let stroke = block_stroke(block.color_hue)
   buf.write_string(
@@ -551,7 +569,7 @@ fn stmt_svg(
   sz : Size,
   buf : StringBuilder,
 ) -> Unit {
-  open_g(buf, block.x, block.y)
+  open_block_g(buf, block.x, block.y, block.id)
   let fill = block_fill(block.color_hue)
   let stroke = block_stroke(block.color_hue)
   buf.write_string(

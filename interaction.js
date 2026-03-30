@@ -1,17 +1,18 @@
-// Block DnD + Pan + Zoom + Snap interaction handler
+// Block DnD + Pan + Zoom + Snap + Model update
 export function setupInteraction(svgEl) {
   const state = {
     dragging: null,
     panning: false,
     panStart: { x: 0, y: 0 },
-    viewBox: { x: 0, y: 0, w: 1000, h: 700 },
+    viewBox: { x: 0, y: 0, w: 1200, h: 800 },
     zoom: 1.0,
     lastPinchDist: 0,
     highlightedSlots: [],
     nearestSlot: null,
   };
 
-  const SNAP_DIST = 30;
+  const SNAP_DIST = 40;
+  const api = () => window.__mbt;
 
   function updateViewBox() {
     svgEl.setAttribute('viewBox',
@@ -29,26 +30,26 @@ export function setupInteraction(svgEl) {
 
   function svgPoint(cx, cy) {
     const pt = svgEl.createSVGPoint();
-    pt.x = cx;
-    pt.y = cy;
+    pt.x = cx; pt.y = cy;
     return pt.matrixTransform(svgEl.getScreenCTM().inverse());
   }
 
-  // Get block connector type from data-block-id element
-  function getBlockType(blockEl) {
-    // Check if it has expression-style path (rounded) or statement-style
-    const path = blockEl.querySelector('path');
-    if (!path) return 'unknown';
-    const d = path.getAttribute('d') || '';
-    // Expression blocks use arc (A command), statement blocks use notch
-    return d.includes(' A ') ? 'expression' : 'statement';
+  function getAbsoluteTranslate(el) {
+    let tx = 0, ty = 0, node = el;
+    while (node && node !== svgEl) {
+      const transform = node.getAttribute('transform');
+      if (transform) {
+        const m = transform.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
+        if (m) { tx += parseFloat(m[1]); ty += parseFloat(m[2]); }
+      }
+      node = node.parentElement;
+    }
+    return { x: tx, y: ty };
   }
 
-  // Highlight compatible empty slots
   function highlightSlots(draggedType) {
     clearHighlights();
-    const slots = svgEl.querySelectorAll('.empty-slot');
-    slots.forEach(slot => {
+    svgEl.querySelectorAll('.empty-slot').forEach(slot => {
       const accepts = slot.dataset.accepts || 'expression';
       if (accepts === draggedType || accepts === 'any') {
         slot.setAttribute('fill', 'rgba(100,200,255,0.25)');
@@ -68,84 +69,84 @@ export function setupInteraction(svgEl) {
       slot.setAttribute('stroke-dasharray', '4 2');
     });
     state.highlightedSlots = [];
-    if (state.nearestSlot) {
-      state.nearestSlot = null;
-    }
+    state.nearestSlot = null;
   }
 
-  // Find nearest compatible slot to a point
-  function findNearestSlot(pt, draggedType) {
-    let nearest = null;
-    let minDist = SNAP_DIST;
-
+  function findNearestSlot(pt) {
+    let nearest = null, minDist = SNAP_DIST;
     state.highlightedSlots.forEach(slot => {
+      const pos = getAbsoluteTranslate(slot);
       const rect = slot.getBBox();
-      // Get slot center in SVG coords
-      let el = slot;
-      let tx = 0, ty = 0;
-      while (el && el !== svgEl) {
-        const transform = el.getAttribute('transform');
-        if (transform) {
-          const m = transform.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
-          if (m) {
-            tx += parseFloat(m[1]);
-            ty += parseFloat(m[2]);
-          }
-        }
-        el = el.parentElement;
-      }
-
-      const cx = tx + rect.x + rect.width / 2;
-      const cy = ty + rect.y + rect.height / 2;
-      const dx = pt.x - cx;
-      const dy = pt.y - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < minDist) {
-        minDist = dist;
-        nearest = slot;
-      }
+      const cx = pos.x + rect.x + rect.width / 2;
+      const cy = pos.y + rect.y + rect.height / 2;
+      const dist = Math.hypot(pt.x - cx, pt.y - cy);
+      if (dist < minDist) { minDist = dist; nearest = slot; }
     });
-
     return nearest;
   }
 
-  // Update slot glow based on proximity
-  function updateSlotGlow(pt, draggedType) {
-    // Reset previous nearest
+  function updateSlotGlow(pt) {
     if (state.nearestSlot) {
       state.nearestSlot.setAttribute('fill', 'rgba(100,200,255,0.25)');
       state.nearestSlot.setAttribute('stroke', 'rgba(100,200,255,0.6)');
       state.nearestSlot.setAttribute('stroke-width', '2');
     }
-
-    const nearest = findNearestSlot(pt, draggedType);
+    const nearest = findNearestSlot(pt);
     if (nearest) {
       nearest.setAttribute('fill', 'rgba(100,255,150,0.4)');
       nearest.setAttribute('stroke', 'rgba(100,255,150,0.9)');
       nearest.setAttribute('stroke-width', '3');
-      state.nearestSlot = nearest;
-    } else {
-      state.nearestSlot = null;
     }
+    state.nearestSlot = nearest;
   }
 
-  // Pointer events
   svgEl.addEventListener('pointerdown', (e) => {
     const blockEl = getBlockGroup(e.target);
     if (blockEl) {
       e.preventDefault();
       svgEl.setPointerCapture(e.pointerId);
+      const blockId = blockEl.dataset.blockId;
+      const blockType = api()?.getBlockType(blockId) || 'unknown';
+      const absPos = getAbsoluteTranslate(blockEl);
       const pt = svgPoint(e.clientX, e.clientY);
-      const m = (blockEl.getAttribute('transform') || '').match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
-      const bx = m ? parseFloat(m[1]) : 0;
-      const by = m ? parseFloat(m[2]) : 0;
-      const blockType = getBlockType(blockEl);
-      state.dragging = { el: blockEl, ox: pt.x - bx, oy: pt.y - by, type: blockType };
-      blockEl.style.cursor = 'grabbing';
-      blockEl.style.opacity = '0.85';
-      blockEl.parentElement.appendChild(blockEl);
-      highlightSlots(blockType);
+
+      // Detach and make top-level
+      api()?.detach(blockId);
+      api()?.moveBlock(blockId, absPos.x, absPos.y);
+
+      // Re-render detached state
+      api()?.rerender();
+
+      requestAnimationFrame(() => {
+        const newSvg = document.querySelector('svg');
+        if (newSvg && newSvg !== svgEl) {
+          // SVG was replaced — re-init with saved viewBox
+          const savedVB = { ...state.viewBox };
+          setupInteraction(newSvg);
+          newSvg.setAttribute('viewBox', `${savedVB.x} ${savedVB.y} ${savedVB.w} ${savedVB.h}`);
+          // Restart drag on new SVG
+          const el2 = newSvg.querySelector(`[data-block-id="${blockId}"]`);
+          if (el2) {
+            el2.style.cursor = 'grabbing';
+            el2.style.opacity = '0.85';
+            const vp = newSvg.querySelector('#viewport');
+            if (vp) vp.appendChild(el2);
+          }
+          return;
+        }
+        const el2 = svgEl.querySelector(`[data-block-id="${blockId}"]`);
+        if (el2) {
+          el2.style.cursor = 'grabbing';
+          el2.style.opacity = '0.85';
+          const vp = svgEl.querySelector('#viewport');
+          if (vp) vp.appendChild(el2);
+          state.dragging = {
+            blockId, type: blockType, el: el2,
+            ox: pt.x - absPos.x, oy: pt.y - absPos.y,
+          };
+          highlightSlots(blockType);
+        }
+      });
     } else {
       state.panning = true;
       state.panStart = { x: e.clientX, y: e.clientY };
@@ -154,13 +155,15 @@ export function setupInteraction(svgEl) {
   });
 
   svgEl.addEventListener('pointermove', (e) => {
-    if (state.dragging) {
+    if (state.dragging?.el) {
       e.preventDefault();
       const pt = svgPoint(e.clientX, e.clientY);
       const nx = pt.x - state.dragging.ox;
       const ny = pt.y - state.dragging.oy;
       state.dragging.el.setAttribute('transform', `translate(${nx},${ny})`);
-      updateSlotGlow(pt, state.dragging.type);
+      state.dragging.lastX = nx;
+      state.dragging.lastY = ny;
+      updateSlotGlow(pt);
     } else if (state.panning) {
       const dx = (e.clientX - state.panStart.x) / state.zoom;
       const dy = (e.clientY - state.panStart.y) / state.zoom;
@@ -173,36 +176,31 @@ export function setupInteraction(svgEl) {
 
   svgEl.addEventListener('pointerup', () => {
     if (state.dragging) {
-      state.dragging.el.style.cursor = 'grab';
-      state.dragging.el.style.opacity = '1';
+      const { blockId, lastX, lastY } = state.dragging;
 
-      // Snap to nearest slot if close enough
       if (state.nearestSlot) {
-        const slot = state.nearestSlot;
-        const parentId = slot.dataset.parent;
-        const slotName = slot.dataset.slot;
-        const blockId = state.dragging.el.dataset.blockId;
-        console.log(`[snap] ${blockId} → ${parentId}.${slotName}`);
-        // Visual feedback: flash green
-        slot.setAttribute('fill', 'rgba(100,255,150,0.6)');
-        setTimeout(() => {
-          slot.setAttribute('fill', 'rgba(100,200,255,0.25)');
-        }, 300);
+        const parentId = state.nearestSlot.dataset.parent;
+        const slotName = state.nearestSlot.dataset.slot;
+        api()?.connect(parentId, slotName, blockId);
+        api()?.moveBlock(blockId, 0, 0);
+      } else if (lastX !== undefined) {
+        api()?.moveBlock(blockId, lastX, lastY);
       }
 
       clearHighlights();
       state.dragging = null;
-    }
-    state.panning = false;
-    svgEl.style.cursor = 'default';
-  });
 
-  svgEl.addEventListener('pointerleave', () => {
-    if (state.dragging) {
-      state.dragging.el.style.cursor = 'grab';
-      state.dragging.el.style.opacity = '1';
-      clearHighlights();
-      state.dragging = null;
+      // Re-render and re-init
+      const savedVB = { ...state.viewBox };
+      const savedZoom = state.zoom;
+      api()?.rerender();
+      requestAnimationFrame(() => {
+        const newSvg = document.querySelector('svg');
+        if (newSvg) {
+          setupInteraction(newSvg);
+          newSvg.setAttribute('viewBox', `${savedVB.x} ${savedVB.y} ${savedVB.w} ${savedVB.h}`);
+        }
+      });
     }
     state.panning = false;
     svgEl.style.cursor = 'default';
@@ -218,26 +216,25 @@ export function setupInteraction(svgEl) {
     state.viewBox.x += (pt.x - state.viewBox.x) * (1 - d);
     state.viewBox.y += (pt.y - state.viewBox.y) * (1 - d);
     state.zoom /= d;
-    state.viewBox.w = Math.max(200, Math.min(5000, state.viewBox.w));
-    state.viewBox.h = Math.max(140, Math.min(3500, state.viewBox.h));
+    state.viewBox.w = Math.max(200, Math.min(6000, state.viewBox.w));
+    state.viewBox.h = Math.max(133, Math.min(4000, state.viewBox.h));
     updateViewBox();
   }, { passive: false });
 
-  // Touch pinch zoom
+  // Touch pinch
   svgEl.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      state.lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+      state.lastPinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY);
     }
   });
-
   svgEl.addEventListener('touchmove', (e) => {
     if (e.touches.length === 2) {
       e.preventDefault();
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY);
       if (state.lastPinchDist > 0) {
         const s = state.lastPinchDist / dist;
         const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
@@ -248,13 +245,12 @@ export function setupInteraction(svgEl) {
         state.viewBox.x += (pt.x - state.viewBox.x) * (1 - s);
         state.viewBox.y += (pt.y - state.viewBox.y) * (1 - s);
         state.zoom /= s;
-        state.viewBox.w = Math.max(200, Math.min(5000, state.viewBox.w));
-        state.viewBox.h = Math.max(140, Math.min(3500, state.viewBox.h));
+        state.viewBox.w = Math.max(200, Math.min(6000, state.viewBox.w));
+        state.viewBox.h = Math.max(133, Math.min(4000, state.viewBox.h));
         updateViewBox();
       }
       state.lastPinchDist = dist;
     }
   }, { passive: false });
-
   svgEl.addEventListener('touchend', () => { state.lastPinchDist = 0; });
 }

@@ -99,6 +99,59 @@ pub fn Workspace::connect_next(
   block.next_id = Some(next_id)
 }
 
+/// ブロックを親から取り外す (スロット or next chain)
+pub fn Workspace::detach_block(self : Workspace, block_id : String) -> Unit {
+  for _, parent in self.blocks {
+    // input スロットから切断
+    for slot in parent.inputs {
+      match slot.child_id {
+        Some(cid) =>
+          if cid == block_id {
+            slot.child_id = None
+          }
+        None => ()
+      }
+    }
+    // next chain から切断
+    match parent.next_id {
+      Some(nid) =>
+        if nid == block_id {
+          parent.next_id = None
+        }
+      None => ()
+    }
+  }
+}
+
+/// スロットの接続を解除 (子ブロックの ID を返す)
+pub fn Workspace::disconnect_slot(
+  self : Workspace,
+  parent_id : String,
+  slot_name : String,
+) -> String? {
+  guard self.blocks.get(parent_id) is Some(parent) else { return None }
+  for slot in parent.inputs {
+    if slot.name == slot_name {
+      let old = slot.child_id
+      slot.child_id = None
+      return old
+    }
+  }
+  None
+}
+
+/// ブロック位置の更新
+pub fn Workspace::move_block(
+  self : Workspace,
+  block_id : String,
+  x : Double,
+  y : Double,
+) -> Unit {
+  guard self.blocks.get(block_id) is Some(block) else { return }
+  block.x = x
+  block.y = y
+}
+
 /// トップレベルブロック (どのスロットにも嵌まっていないブロック) を取得
 pub fn Workspace::top_level_blocks(self : Workspace) -> Array[String] {
   let children : Map[String, Bool] = {}
