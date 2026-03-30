@@ -138,21 +138,6 @@ export function setupInteraction(svgEl) {
       }
     });
 
-    // 3) Drop zone (insert between statements)
-    if (dragType === 'statement') {
-      svgEl.querySelectorAll('.drop-zone').forEach(dz => {
-        const pos = getAbsoluteTranslate(dz);
-        const rect = dz.getBBox();
-        const cx = pos.x + rect.x + rect.width / 2;
-        const cy = pos.y + rect.y + rect.height / 2;
-        const dist = Math.hypot(topNotch.x - cx, topNotch.y - cy);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = { type: 'insert', el: dz, afterId: dz.dataset.insertAfter };
-        }
-      });
-    }
-
     return best;
   }
 
@@ -273,7 +258,7 @@ export function setupInteraction(svgEl) {
     if (!state.dragging) return;
     // Clear previous
     if (state.snapTarget) {
-      if (state.snapTarget.type === 'slot' || state.snapTarget.type === 'insert') {
+      if (state.snapTarget.type === 'slot') {
         setSlotGlow(state.snapTarget.el, false);
       } else {
         setBlockGlow(state.snapTarget.el, false);
@@ -282,7 +267,7 @@ export function setupInteraction(svgEl) {
     // Find new
     const target = findSnapTarget(state.dragging.blockId, state.dragging.type);
     if (target) {
-      if (target.type === 'slot' || target.type === 'insert') {
+      if (target.type === 'slot') {
         setSlotGlow(target.el, true);
       } else {
         setBlockGlow(target.el, true);
@@ -297,7 +282,7 @@ export function setupInteraction(svgEl) {
   function clearSnap() {
     removePreview();
     if (state.snapTarget) {
-      if (state.snapTarget.type === 'slot' || state.snapTarget.type === 'insert') {
+      if (state.snapTarget.type === 'slot') {
         setSlotGlow(state.snapTarget.el, false);
       } else {
         setBlockGlow(state.snapTarget.el, false);
@@ -410,9 +395,6 @@ export function setupInteraction(svgEl) {
           api()?.moveBlock(blockId, 0, 0);
         } else if (t.type === 'next') {
           api()?.connectNext(t.bid, blockId);
-          api()?.moveBlock(blockId, 0, 0);
-        } else if (t.type === 'insert') {
-          api()?.insertAfter(t.afterId, blockId);
           api()?.moveBlock(blockId, 0, 0);
         }
       } else {
