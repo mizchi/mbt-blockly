@@ -1,0 +1,16 @@
+{
+  "name": "mizchi/mbt-blockly",
+  "version": "0.1.0",
+  "deps": {
+    "mizchi/luna": "0.18.3",
+    "mizchi/js": "0.10.14",
+    "mizchi/signals": "0.6.4",
+    "moonbitlang/x": "0.4.40"
+  },
+  "readme": "README.md",
+  "repository": "https://github.com/mizchi/mbt-blockly",
+  "license": "MIT",
+  "description": "Blockly-style visual code editor for MoonBit AST, rendered in SVG",
+  "source": "src",
+  "preferred-target": "js"
+}

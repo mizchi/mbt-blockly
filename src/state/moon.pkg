@@ -1,0 +1,4 @@
+import {
+  "mizchi/mbt-blockly/model",
+  "mizchi/signals",
+}

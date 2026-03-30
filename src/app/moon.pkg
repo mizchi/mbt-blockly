@@ -1,0 +1,11 @@
+import {
+  "mizchi/mbt-blockly/model",
+  "mizchi/mbt-blockly/render",
+  "mizchi/luna/dom" @element,
+  "mizchi/js/browser/dom" @dom,
+}
+
+options(
+  "is-main": true,
+  "supported-targets": "js",
+)

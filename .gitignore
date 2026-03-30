@@ -1,0 +1,7 @@
+_build/
+target/
+.mooncakes/
+node_modules/
+dist/
+test-results/
+playwright-report/
