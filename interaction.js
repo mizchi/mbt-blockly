@@ -148,65 +148,117 @@ export function setupInteraction(svgEl) {
     return best;
   }
 
-  // --- Preview rect ---
-  let previewEl = null;
+  // --- Preview ---
+  let previewEls = [];
 
   function showPreview(target) {
     removePreview();
     if (!state.dragging?.el) return;
 
     const ns = 'http://www.w3.org/2000/svg';
-    const rect = document.createElementNS(ns, 'rect');
-    rect.classList.add('snap-preview');
+    const viewport = svgEl.querySelector('#viewport');
+    if (!viewport) return;
 
-    // ドラッグ中ブロックのサイズを取得
     const dragBBox = state.dragging.el.getBBox();
-    const w = dragBBox.width;
-    const h = dragBBox.height;
+    const dw = dragBBox.width;
+    const dh = dragBBox.height;
 
-    // ターゲット位置を計算
+    // --- 1) ドロップ先プレビュー ---
     let px, py;
+    let parentEl = null; // 親ブロック要素
+
     if (target.type === 'next') {
-      // bottom notch の下に配置
       const pos = getAbsoluteTranslate(target.el);
       const th = parseFloat(target.el.dataset.height) || 0;
       px = pos.x;
-      py = pos.y + th + 4; // notch height offset
+      py = pos.y + th + 4;
+      parentEl = target.el;
     } else if (target.type === 'slot') {
-      // スロット位置に配置
       const pos = getAbsoluteTranslate(target.el);
       const sr = target.el.getBBox();
       px = pos.x + sr.x;
       py = pos.y + sr.y;
+      // 親はスロットの data-parent
+      parentEl = svgEl.querySelector(`[data-block-id="${target.parentId}"]`);
     } else if (target.type === 'insert') {
       const pos = getAbsoluteTranslate(target.el);
       const sr = target.el.getBBox();
       px = pos.x + sr.x;
       py = pos.y + sr.y;
+      parentEl = svgEl.querySelector(`[data-block-id="${target.afterId}"]`);
     } else {
       return;
     }
 
-    rect.setAttribute('x', px);
-    rect.setAttribute('y', py);
-    rect.setAttribute('width', w);
-    rect.setAttribute('height', h);
-    rect.setAttribute('rx', '6');
-    rect.setAttribute('fill', 'rgba(100,255,150,0.08)');
-    rect.setAttribute('stroke', 'rgba(100,255,150,0.7)');
-    rect.setAttribute('stroke-width', '2');
-    rect.setAttribute('stroke-dasharray', '6 4');
+    // ドロップ位置の rect
+    const dropRect = document.createElementNS(ns, 'rect');
+    dropRect.classList.add('snap-preview');
+    dropRect.setAttribute('x', px);
+    dropRect.setAttribute('y', py);
+    dropRect.setAttribute('width', dw);
+    dropRect.setAttribute('height', dh);
+    dropRect.setAttribute('rx', '6');
+    dropRect.setAttribute('fill', 'rgba(100,255,150,0.08)');
+    dropRect.setAttribute('stroke', 'rgba(100,255,150,0.7)');
+    dropRect.setAttribute('stroke-width', '2');
+    dropRect.setAttribute('stroke-dasharray', '6 4');
+    viewport.appendChild(dropRect);
+    previewEls.push(dropRect);
 
-    const viewport = svgEl.querySelector('#viewport');
-    if (viewport) viewport.appendChild(rect);
-    previewEl = rect;
+    // --- 2) 親コンテナの拡張プレビュー ---
+    if (parentEl) {
+      // 親の現在のサイズ
+      const parentPos = getAbsoluteTranslate(parentEl);
+      const parentH = parseFloat(parentEl.dataset.height) || 0;
+      const parentBBox = parentEl.getBBox();
+      const parentW = parentBBox.width;
+
+      // 拡張後のサイズ: 親の高さ + ドラッグブロックの高さ
+      const expandedH = parentH + dh + 8;
+      const expandedW = Math.max(parentW, dw + 80);
+
+      const expandRect = document.createElementNS(ns, 'rect');
+      expandRect.classList.add('snap-preview');
+      expandRect.setAttribute('x', parentPos.x - 2);
+      expandRect.setAttribute('y', parentPos.y - 6);
+      expandRect.setAttribute('width', expandedW + 4);
+      expandRect.setAttribute('height', expandedH + 10);
+      expandRect.setAttribute('rx', '6');
+      expandRect.setAttribute('fill', 'none');
+      expandRect.setAttribute('stroke', 'rgba(160,200,255,0.5)');
+      expandRect.setAttribute('stroke-width', '1.5');
+      expandRect.setAttribute('stroke-dasharray', '8 4');
+      viewport.appendChild(expandRect);
+      previewEls.push(expandRect);
+
+      // さらに親の親 (例: fn block) も拡張プレビュー
+      const grandparentEl = parentEl.parentElement?.closest('[data-block-id]');
+      if (grandparentEl) {
+        const gpPos = getAbsoluteTranslate(grandparentEl);
+        const gpH = parseFloat(grandparentEl.dataset.height) || 0;
+        const gpBBox = grandparentEl.getBBox();
+        const gpExpandedH = gpH + dh + 8;
+
+        const gpRect = document.createElementNS(ns, 'rect');
+        gpRect.classList.add('snap-preview');
+        gpRect.setAttribute('x', gpPos.x - 3);
+        gpRect.setAttribute('y', gpPos.y - 8);
+        gpRect.setAttribute('width', gpBBox.width + 6);
+        gpRect.setAttribute('height', gpExpandedH + 14);
+        gpRect.setAttribute('rx', '8');
+        gpRect.setAttribute('fill', 'none');
+        gpRect.setAttribute('stroke', 'rgba(160,200,255,0.3)');
+        gpRect.setAttribute('stroke-width', '1');
+        gpRect.setAttribute('stroke-dasharray', '10 5');
+        viewport.appendChild(gpRect);
+        previewEls.push(gpRect);
+      }
+    }
   }
 
   function removePreview() {
-    if (previewEl) {
-      previewEl.remove();
-      previewEl = null;
-    }
+    previewEls.forEach(el => el.remove());
+    previewEls = [];
   }
 
   function updateSnap() {
