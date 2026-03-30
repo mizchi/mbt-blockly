@@ -147,7 +147,7 @@ pub fn workspace_to_svg(
   buf.write_string(
     "<defs><pattern id=\"g\" width=\"20\" height=\"20\" patternUnits=\"userSpaceOnUse\"><path d=\"M 20 0 L 0 0 0 20\" fill=\"none\" stroke=\"" +
     grid_color +
-    "\" stroke-width=\"0.5\"/></pattern></defs>",
+    "\" stroke-width=\"0.5\"/></pattern><filter id=\"shadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\"><feGaussianBlur in=\"SourceGraphic\" stdDeviation=\"3\"/></filter></defs>",
   )
   buf.write_string("<rect width=\"100%\" height=\"100%\" fill=\"url(#g)\"/>")
   buf.write_string("<g id=\"viewport\">")
@@ -160,14 +160,21 @@ pub fn workspace_to_svg(
         buf.write_string(
           "<g data-block-id=\"" +
           block.id +
-          "\" style=\"cursor:grab;\" transform=\"translate(" +
+          "\" data-top-level=\"true\" style=\"cursor:grab;\" transform=\"translate(" +
           block.x.to_string() +
           "," +
           block.y.to_string() +
           ")\">",
         )
-        // block_to_svg 内の g transform と二重にならないよう、
-        // 子ブロック描画時は block の x,y を相殺する
+        // トップレベルの影 (浮いている感)
+        let top_sz = measure(block, ws)
+        buf.write_string(
+          "<rect x=\"3\" y=\"3\" width=\"" +
+          (top_sz.w + 2.0).to_string() +
+          "\" height=\"" +
+          (top_sz.h + top_sz.next_h + 2.0).to_string() +
+          "\" rx=\"6\" fill=\"rgba(0,0,0,0.3)\" filter=\"url(#shadow)\"/>",
+        )
         block_to_svg_at_origin(block, ws, buf)
         buf.write_string("</g>")
       }
@@ -648,14 +655,45 @@ fn stmt_svg(
       }
     }
   }
-  // next
+  // next chain: 接続レール + 次のブロック
   let next_block : @model.BlockInstance? = match block.next_id {
     Some(id) => ws.blocks.get(id)
     None => None
   }
   match next_block {
     Some(next) => {
-      open_g(buf, 0.0, sz.h + notch_h)
+      // 接続レール: 左端に縦線 + ドット (連続性を表現)
+      let next_y = sz.h + notch_h
+      let rail_x = 6.0
+      // 縦線
+      buf.write_string(
+        "<line x1=\"" +
+        rail_x.to_string() +
+        "\" y1=\"" +
+        (sz.h - 4.0).to_string() +
+        "\" x2=\"" +
+        rail_x.to_string() +
+        "\" y2=\"" +
+        (next_y + 8.0).to_string() +
+        "\" stroke=\"rgba(160,200,255,0.5)\" stroke-width=\"3\" stroke-linecap=\"round\"/>",
+      )
+      // 上ドット
+      buf.write_string(
+        "<circle cx=\"" +
+        rail_x.to_string() +
+        "\" cy=\"" +
+        (sz.h - 1.0).to_string() +
+        "\" r=\"3.5\" fill=\"rgba(160,200,255,0.7)\"/>",
+      )
+      // 下ドット
+      buf.write_string(
+        "<circle cx=\"" +
+        rail_x.to_string() +
+        "\" cy=\"" +
+        (next_y + 5.0).to_string() +
+        "\" r=\"3.5\" fill=\"rgba(160,200,255,0.7)\"/>",
+      )
+      open_g(buf, 0.0, next_y)
       block_to_svg(next, ws, buf)
       close_g(buf)
     }
