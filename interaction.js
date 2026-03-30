@@ -148,6 +148,67 @@ export function setupInteraction(svgEl) {
     return best;
   }
 
+  // --- Preview rect ---
+  let previewEl = null;
+
+  function showPreview(target) {
+    removePreview();
+    if (!state.dragging?.el) return;
+
+    const ns = 'http://www.w3.org/2000/svg';
+    const rect = document.createElementNS(ns, 'rect');
+    rect.classList.add('snap-preview');
+
+    // ドラッグ中ブロックのサイズを取得
+    const dragBBox = state.dragging.el.getBBox();
+    const w = dragBBox.width;
+    const h = dragBBox.height;
+
+    // ターゲット位置を計算
+    let px, py;
+    if (target.type === 'next') {
+      // bottom notch の下に配置
+      const pos = getAbsoluteTranslate(target.el);
+      const th = parseFloat(target.el.dataset.height) || 0;
+      px = pos.x;
+      py = pos.y + th + 4; // notch height offset
+    } else if (target.type === 'slot') {
+      // スロット位置に配置
+      const pos = getAbsoluteTranslate(target.el);
+      const sr = target.el.getBBox();
+      px = pos.x + sr.x;
+      py = pos.y + sr.y;
+    } else if (target.type === 'insert') {
+      const pos = getAbsoluteTranslate(target.el);
+      const sr = target.el.getBBox();
+      px = pos.x + sr.x;
+      py = pos.y + sr.y;
+    } else {
+      return;
+    }
+
+    rect.setAttribute('x', px);
+    rect.setAttribute('y', py);
+    rect.setAttribute('width', w);
+    rect.setAttribute('height', h);
+    rect.setAttribute('rx', '6');
+    rect.setAttribute('fill', 'rgba(100,255,150,0.08)');
+    rect.setAttribute('stroke', 'rgba(100,255,150,0.7)');
+    rect.setAttribute('stroke-width', '2');
+    rect.setAttribute('stroke-dasharray', '6 4');
+
+    const viewport = svgEl.querySelector('#viewport');
+    if (viewport) viewport.appendChild(rect);
+    previewEl = rect;
+  }
+
+  function removePreview() {
+    if (previewEl) {
+      previewEl.remove();
+      previewEl = null;
+    }
+  }
+
   function updateSnap() {
     if (!state.dragging) return;
     // Clear previous
@@ -166,11 +227,15 @@ export function setupInteraction(svgEl) {
       } else {
         setBlockGlow(target.el, true);
       }
+      showPreview(target);
+    } else {
+      removePreview();
     }
     state.snapTarget = target;
   }
 
   function clearSnap() {
+    removePreview();
     if (state.snapTarget) {
       if (state.snapTarget.type === 'slot' || state.snapTarget.type === 'insert') {
         setSlotGlow(state.snapTarget.el, false);
