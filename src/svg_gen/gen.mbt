@@ -325,7 +325,7 @@ fn extract_operator(label : String) -> String {
   }
 }
 
-///| 空スロット描画 (expression 用、inline)
+///| 空スロット描画 (expression / statement)
 fn render_empty_slot(
   buf : StringBuilder,
   x : Double,
@@ -336,22 +336,90 @@ fn render_empty_slot(
   let parent_id = parent_id.or("")
   let slot_name = slot_name.or("")
   let accepts = accepts.or("expression")
+  if accepts == "expression" {
+    // Expression: pill 形状 (丸み)
+    buf.write_string(
+      "<rect class=\"empty-slot\" data-parent=\"" + parent_id +
+      "\" data-slot=\"" + slot_name +
+      "\" data-accepts=\"" + accepts +
+      "\" x=\"" + x.to_string() +
+      "\" y=\"4\" width=\"" + empty_w.to_string() +
+      "\" height=\"20\" rx=\"10\" fill=\"" + empty_fill +
+      "\" stroke=\"" + empty_stroke +
+      "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
+    )
+    // pill 左端のアダプタ (左に凸のカーブ)
+    let ax = x + 2.0
+    buf.write_string(
+      "<path d=\"M " + (ax + 6.0).to_string() + " 8 " +
+      "A 5 5 0 0 0 " + (ax + 6.0).to_string() + " 20\" " +
+      "fill=\"none\" stroke=\"" + empty_stroke +
+      "\" stroke-width=\"1.5\" stroke-dasharray=\"3 2\"/>",
+    )
+  } else {
+    // Statement: notch 形状 (上に凸の台形)
+    let sw = empty_w
+    let sh = empty_h
+    let nw = 20.0
+    let nh = notch_h
+    // 本体
+    buf.write_string(
+      "<rect class=\"empty-slot\" data-parent=\"" + parent_id +
+      "\" data-slot=\"" + slot_name +
+      "\" data-accepts=\"" + accepts +
+      "\" x=\"" + x.to_string() +
+      "\" y=\"4\" width=\"" + sw.to_string() +
+      "\" height=\"" + sh.to_string() +
+      "\" rx=\"4\" fill=\"" + empty_fill +
+      "\" stroke=\"" + empty_stroke +
+      "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
+    )
+    // top notch アダプタ (凸の台形)
+    let nx = x + 10.0
+    buf.write_string(
+      "<path d=\"M " + nx.to_string() + " 4 " +
+      "L " + (nx + 4.0).to_string() + " " + (4.0 - nh).to_string() + " " +
+      "L " + (nx + 4.0 + 12.0).to_string() + " " + (4.0 - nh).to_string() + " " +
+      "L " + (nx + 4.0 + 16.0).to_string() + " 4\" " +
+      "fill=\"none\" stroke=\"" + empty_stroke +
+      "\" stroke-width=\"1.5\" stroke-dasharray=\"3 2\"/>",
+    )
+  }
+}
+
+///| Statement body 内の空スロット (stmt_svg で使用)
+fn render_empty_stmt_slot(
+  buf : StringBuilder,
+  x : Double,
+  y : Double,
+  w : Double,
+  parent_id : String,
+  slot_name : String,
+) -> Unit {
+  let sh = empty_h
+  let nw = 20.0
+  let nh = notch_h
+  // 本体
   buf.write_string(
-    "<rect class=\"empty-slot\" data-parent=\"" +
-    parent_id +
-    "\" data-slot=\"" +
-    slot_name +
-    "\" data-accepts=\"" +
-    accepts +
-    "\" x=\"" +
-    x.to_string() +
-    "\" y=\"4\" width=\"" +
-    empty_w.to_string() +
-    "\" height=\"20\" rx=\"10\" fill=\"" +
-    empty_fill +
-    "\" stroke=\"" +
-    empty_stroke +
+    "<rect class=\"empty-slot\" data-parent=\"" + parent_id +
+    "\" data-slot=\"" + slot_name +
+    "\" data-accepts=\"statement\" x=\"" + x.to_string() +
+    "\" y=\"" + y.to_string() +
+    "\" width=\"" + w.to_string() +
+    "\" height=\"" + sh.to_string() +
+    "\" rx=\"4\" fill=\"" + empty_fill +
+    "\" stroke=\"" + empty_stroke +
     "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
+  )
+  // top notch アダプタ
+  let nx = x + 10.0
+  buf.write_string(
+    "<path d=\"M " + nx.to_string() + " " + y.to_string() + " " +
+    "L " + (nx + 4.0).to_string() + " " + (y - nh).to_string() + " " +
+    "L " + (nx + 4.0 + 12.0).to_string() + " " + (y - nh).to_string() + " " +
+    "L " + (nx + 4.0 + 16.0).to_string() + " " + y.to_string() + "\" " +
+    "fill=\"none\" stroke=\"" + empty_stroke +
+    "\" stroke-width=\"1.5\" stroke-dasharray=\"3 2\"/>",
   )
 }
 
@@ -675,29 +743,26 @@ fn stmt_svg(
         block_to_svg(child, ws, buf)
         close_g(buf)
       }
-      None => {
-        let accepts_str = match slot.accepts {
-          @model.Expression => "expression"
-          @model.Statement => "statement"
+      None =>
+        match slot.accepts {
+          @model.Expression =>
+            render_empty_slot(
+              buf,
+              indent,
+              parent_id=block.id,
+              slot_name=slot.name,
+              accepts="expression",
+            )
+          @model.Statement =>
+            render_empty_stmt_slot(
+              buf,
+              indent,
+              sy + 6.0,
+              sz.w - indent - 4.0,
+              block.id,
+              slot.name,
+            )
         }
-        buf.write_string(
-          "<rect class=\"empty-slot\" data-parent=\"" +
-          block.id +
-          "\" data-slot=\"" +
-          slot.name +
-          "\" data-accepts=\"" +
-          accepts_str +
-          "\" x=\"" +
-          indent.to_string() +
-          "\" y=\"" +
-          (sy + 6.0).to_string() +
-          "\" width=\"" +
-          empty_w.to_string() +
-          "\" height=\"" +
-          empty_h.to_string() +
-          "\" rx=\"4\" fill=\"" + empty_fill + "\" stroke=\"" + empty_stroke + "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
-        )
-      }
     }
   }
   // next chain: 接続レール + 次のブロック
