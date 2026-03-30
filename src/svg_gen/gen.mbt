@@ -7,13 +7,13 @@ let min_width : Double = 140.0
 
 let header_h : Double = 32.0
 
-let slot_h : Double = 32.0
+let slot_h : Double = 44.0
 
 let indent : Double = 70.0
 
-let empty_w : Double = 80.0
+let empty_w : Double = 100.0
 
-let empty_h : Double = 24.0
+let empty_h : Double = 36.0
 
 let notch_h : Double = 4.0
 
