@@ -125,7 +125,14 @@ export function setupInteraction(svgEl) {
       }
 
       blockEl.style.cursor = 'grabbing';
-      blockEl.style.opacity = '0.85';
+      blockEl.style.filter = 'drop-shadow(0 0 6px rgba(130,200,255,0.7))';
+      const mainPath = blockEl.querySelector('path');
+      if (mainPath) {
+        mainPath._origStroke = mainPath.getAttribute('stroke');
+        mainPath._origStrokeWidth = mainPath.getAttribute('stroke-width');
+        mainPath.setAttribute('stroke', 'rgba(130,200,255,0.9)');
+        mainPath.setAttribute('stroke-width', '2.5');
+      }
 
       state.dragging = {
         blockId,
@@ -167,7 +174,18 @@ export function setupInteraction(svgEl) {
 
   svgEl.addEventListener('pointerup', (e) => {
     if (state.dragging) {
-      const { blockId, lastX, lastY } = state.dragging;
+      const { blockId, lastX, lastY, el: dragEl } = state.dragging;
+
+      // 視覚リセット
+      if (dragEl) {
+        dragEl.style.cursor = '';
+        dragEl.style.filter = '';
+        const mp = dragEl.querySelector('path');
+        if (mp && mp._origStroke) {
+          mp.setAttribute('stroke', mp._origStroke);
+          mp.setAttribute('stroke-width', mp._origStrokeWidth || '1.5');
+        }
+      }
 
       // モデル更新: まず親から切断
       api()?.detach(blockId);
