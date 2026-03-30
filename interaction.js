@@ -10,7 +10,7 @@ export function setupInteraction(svgEl) {
     snapTarget: null,
   };
 
-  const SNAP_DIST = 40;
+  const SNAP_DIST = 50;
   const NOTCH_X = 28; // notch center x offset
   const api = () => window.__mbt;
 
@@ -121,8 +121,16 @@ export function setupInteraction(svgEl) {
       if (accepts !== dragType && accepts !== 'any') return;
       const pos = getAbsoluteTranslate(slot);
       const rect = slot.getBBox();
-      const cx = pos.x + rect.x + rect.width / 2;
-      const cy = pos.y + rect.y + rect.height / 2;
+      // Statement: notch 位置 (上端 + notch offset) で判定
+      // Expression: center で判定
+      let cx, cy;
+      if (accepts === 'statement') {
+        cx = pos.x + rect.x + NOTCH_X;
+        cy = pos.y + rect.y; // 上端 = notch 接続点
+      } else {
+        cx = pos.x + rect.x + rect.width / 2;
+        cy = pos.y + rect.y + rect.height / 2;
+      }
       const dist = Math.hypot(topNotch.x - cx, topNotch.y - cy);
       if (dist < bestDist) {
         bestDist = dist;
