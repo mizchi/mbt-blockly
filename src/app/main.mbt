@@ -1,4 +1,7 @@
-///| mbt-blockly メインエントリポイント
+///| mbt-blockly メインエントリポイント (svg_gen ベース)
+
+extern "js" fn set_inner_html(el : @dom.Element, html : String) -> Unit =
+  #|(el, html) => { el.innerHTML = html; }
 
 fn main {
   let catalog = @model.create_block_catalog()
@@ -13,7 +16,6 @@ fn main {
   guard catalog.get("identifier") is Some(id_def) else { return }
   guard catalog.get("return_stmt") is Some(ret_def) else { return }
   guard catalog.get("fn_call") is Some(call_def) else { return }
-  guard catalog.get("for_loop") is Some(for_def) else { return }
   guard catalog.get("string_lit") is Some(str_def) else { return }
 
   // ---- fn main() { let x = 1 + 2; if x == 3 { return x } } ----
@@ -45,7 +47,7 @@ fn main {
   ws.connect_to_input(ret1, "value", vx2)
 
   // ---- fn add(a, b) { return a + b } ----
-  let fn2 = ws.create_block(fn_def, 500.0, 30.0, label="fn add(a, b)")
+  let fn2 = ws.create_block(fn_def, 550.0, 30.0, label="fn add(a, b)")
 
   let ret2 = ws.create_block(ret_def, 0.0, 0.0)
   ws.connect_to_input(fn2, "body", ret2)
@@ -58,7 +60,7 @@ fn main {
   ws.connect_to_input(add2, "right", vb)
 
   // ---- fn greet(name) { let msg = "Hello, " + name; println(msg) } ----
-  let fn3 = ws.create_block(fn_def, 30.0, 380.0, label="fn greet(name)")
+  let fn3 = ws.create_block(fn_def, 30.0, 400.0, label="fn greet(name)")
 
   let let2 = ws.create_block(let_def, 0.0, 0.0, label="let msg =")
   ws.connect_to_input(fn3, "body", let2)
@@ -75,31 +77,9 @@ fn main {
   let vmsg = ws.create_block(id_def, 0.0, 0.0, value="msg")
   ws.connect_to_input(call1, "arg0", vmsg)
 
-  // SVG レンダリング
-  let top_blocks = ws.top_level_blocks()
-  let block_nodes : Array[@element.DomNode] = []
-  for id in top_blocks {
-    match ws.blocks.get(id) {
-      Some(block) => block_nodes.push(@render.render_block(block, ws))
-      None => ()
-    }
-  }
-
-  let grid_bg = @element.svg_rect(
-    width="100%",
-    height="100%",
-    fill="#1e1e2e",
-  )
-
-  let root = @element.svg(
-    width="100%",
-    height="100%",
-    viewBox="0 0 1000 700",
-    style="background: #1e1e2e;",
-    [grid_bg, @element.svg_g(id="blocks", block_nodes)],
-  )
-
+  // SVG 文字列生成 + DOM 注入
+  let svg_str = @svg_gen.workspace_to_svg(ws, 1000, 700)
   let doc = @dom.document()
   guard doc.getElementById("app") is Some(el) else { return }
-  @element.render_to(el, root)
+  set_inner_html(el, svg_str)
 }

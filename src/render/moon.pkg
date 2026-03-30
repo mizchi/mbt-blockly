@@ -1,4 +1,0 @@
-import {
-  "mizchi/mbt-blockly/model",
-  "mizchi/luna/dom" @element,
-}

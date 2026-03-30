@@ -1,7 +1,6 @@
 import {
   "mizchi/mbt-blockly/model",
-  "mizchi/mbt-blockly/render",
-  "mizchi/luna/dom" @element,
+  "mizchi/mbt-blockly/svg_gen",
   "mizchi/js/browser/dom" @dom,
 }
 
