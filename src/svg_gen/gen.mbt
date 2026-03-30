@@ -228,11 +228,26 @@ fn open_block_g(
   buf : StringBuilder,
   x : Double,
   y : Double,
-  block_id : String,
+  block : @model.BlockInstance,
+  height? : Double,
 ) -> Unit {
+  let conn_type = match block.connector {
+    @model.Expression => "expression"
+    @model.Statement => "statement"
+  }
+  let h_str = match height {
+    Some(h) => h.to_string()
+    None => "0"
+  }
   buf.write_string(
     "<g data-block-id=\"" +
-    block_id +
+    block.id +
+    "\" data-conn=\"" +
+    conn_type +
+    "\" data-has-next=\"" +
+    (if block.has_next { "true" } else { "false" }) +
+    "\" data-height=\"" +
+    h_str +
     "\" transform=\"translate(" +
     x.to_string() +
     "," +
@@ -451,7 +466,7 @@ fn expr_svg(
   sz : Size,
   buf : StringBuilder,
 ) -> Unit {
-  open_block_g(buf, block.x, block.y, block.id)
+  open_block_g(buf, block.x, block.y, block, height=expr_h)
   let fill = block_fill(block.color_hue)
   let stroke = block_stroke(block.color_hue)
   buf.write_string(
@@ -570,7 +585,7 @@ fn stmt_svg(
   sz : Size,
   buf : StringBuilder,
 ) -> Unit {
-  open_block_g(buf, block.x, block.y, block.id)
+  open_block_g(buf, block.x, block.y, block, height=sz.h)
   let fill = block_fill(block.color_hue)
   let stroke = block_stroke(block.color_hue)
   buf.write_string(

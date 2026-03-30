@@ -69,6 +69,9 @@ export function setupInteraction(svgEl) {
       slot.setAttribute('stroke-dasharray', '4 2');
     });
     state.highlightedSlots = [];
+    if (state.nearestSlot && !state.nearestSlot._isRect) {
+      setBlockGlow(state.nearestSlot.el, false);
+    }
     state.nearestSlot = null;
   }
 
@@ -85,19 +88,87 @@ export function setupInteraction(svgEl) {
     return nearest;
   }
 
-  function updateSlotGlow(pt) {
+  // ブロックの bottom connector 位置を取得
+  function findNearestBottomConnector(pt, draggedId, draggedType) {
+    if (draggedType !== 'statement') return null;
+    let nearest = null, minDist = SNAP_DIST;
+    svgEl.querySelectorAll('[data-block-id][data-has-next="true"][data-conn="statement"]').forEach(el => {
+      const bid = el.dataset.blockId;
+      if (bid === draggedId) return;
+      const h = parseFloat(el.dataset.height) || 0;
+      if (h === 0) return;
+      const pos = getAbsoluteTranslate(el);
+      // bottom center = notch position
+      const bx = pos.x + 28; // notch x center
+      const by = pos.y + h;
+      const dist = Math.hypot(pt.x - bx, pt.y - by);
+      if (dist < minDist) { minDist = dist; nearest = { el, bid, bx, by }; }
+    });
+    return nearest;
+  }
+
+  // 視覚フィードバック: 接続先ブロックの path を光らせる
+  function setBlockGlow(el, on) {
+    const path = el.querySelector('path');
+    if (!path) return;
+    if (on) {
+      path._savedStroke = path.getAttribute('stroke');
+      path._savedStrokeW = path.getAttribute('stroke-width');
+      path.setAttribute('stroke', 'rgba(100,255,150,0.9)');
+      path.setAttribute('stroke-width', '3');
+      el.style.filter = 'drop-shadow(0 0 4px rgba(100,255,150,0.5))';
+    } else {
+      if (path._savedStroke) path.setAttribute('stroke', path._savedStroke);
+      if (path._savedStrokeW) path.setAttribute('stroke-width', path._savedStrokeW);
+      el.style.filter = '';
+    }
+  }
+
+  function updateSnapTarget(pt) {
+    // クリア前の状態をリセット
     if (state.nearestSlot) {
-      state.nearestSlot.setAttribute('fill', 'rgba(100,200,255,0.25)');
-      state.nearestSlot.setAttribute('stroke', 'rgba(100,200,255,0.6)');
-      state.nearestSlot.setAttribute('stroke-width', '2');
+      if (state.nearestSlot._isRect) {
+        state.nearestSlot.el.setAttribute('fill', 'rgba(100,200,255,0.25)');
+        state.nearestSlot.el.setAttribute('stroke', 'rgba(100,200,255,0.6)');
+        state.nearestSlot.el.setAttribute('stroke-width', '2');
+      } else {
+        setBlockGlow(state.nearestSlot.el, false);
+      }
     }
-    const nearest = findNearestSlot(pt);
-    if (nearest) {
-      nearest.setAttribute('fill', 'rgba(100,255,150,0.4)');
-      nearest.setAttribute('stroke', 'rgba(100,255,150,0.9)');
-      nearest.setAttribute('stroke-width', '3');
+
+    // 1) 空スロットへの接続判定
+    const nearestRect = findNearestSlot(pt);
+    // 2) bottom connector への接続判定
+    const nearestBottom = state.dragging
+      ? findNearestBottomConnector(pt, state.dragging.blockId, state.dragging.type)
+      : null;
+
+    // どちらが近いか
+    let target = null;
+    if (nearestRect && nearestBottom) {
+      const rPos = getAbsoluteTranslate(nearestRect);
+      const rRect = nearestRect.getBBox();
+      const rd = Math.hypot(pt.x - (rPos.x + rRect.x + rRect.width/2), pt.y - (rPos.y + rRect.y + rRect.height/2));
+      const bd = Math.hypot(pt.x - nearestBottom.bx, pt.y - nearestBottom.by);
+      target = rd < bd
+        ? { type: 'slot', el: nearestRect, _isRect: true }
+        : { type: 'next', el: nearestBottom.el, bid: nearestBottom.bid, _isRect: false };
+    } else if (nearestRect) {
+      target = { type: 'slot', el: nearestRect, _isRect: true };
+    } else if (nearestBottom) {
+      target = { type: 'next', el: nearestBottom.el, bid: nearestBottom.bid, _isRect: false };
     }
-    state.nearestSlot = nearest;
+
+    if (target) {
+      if (target._isRect) {
+        target.el.setAttribute('fill', 'rgba(100,255,150,0.4)');
+        target.el.setAttribute('stroke', 'rgba(100,255,150,0.9)');
+        target.el.setAttribute('stroke-width', '3');
+      } else {
+        setBlockGlow(target.el, true);
+      }
+    }
+    state.nearestSlot = target;
   }
 
   // --- Pointer Events ---
@@ -161,7 +232,7 @@ export function setupInteraction(svgEl) {
       state.dragging.el.setAttribute('transform', `translate(${nx},${ny})`);
       state.dragging.lastX = nx;
       state.dragging.lastY = ny;
-      updateSlotGlow(pt);
+      updateSnapTarget(pt);
     } else if (state.panning) {
       const dx = (e.clientX - state.panStart.x) / state.zoom;
       const dy = (e.clientY - state.panStart.y) / state.zoom;
@@ -191,11 +262,17 @@ export function setupInteraction(svgEl) {
       api()?.detach(blockId);
 
       if (state.nearestSlot) {
-        // スロットにスナップ: 接続
-        const parentId = state.nearestSlot.dataset.parent;
-        const slotName = state.nearestSlot.dataset.slot;
-        api()?.connect(parentId, slotName, blockId);
-        api()?.moveBlock(blockId, 0, 0);
+        if (state.nearestSlot.type === 'slot') {
+          // 空スロットにスナップ
+          const parentId = state.nearestSlot.el.dataset.parent;
+          const slotName = state.nearestSlot.el.dataset.slot;
+          api()?.connect(parentId, slotName, blockId);
+          api()?.moveBlock(blockId, 0, 0);
+        } else if (state.nearestSlot.type === 'next') {
+          // bottom connector にスナップ → connectNext
+          api()?.connectNext(state.nearestSlot.bid, blockId);
+          api()?.moveBlock(blockId, 0, 0);
+        }
       } else {
         // 空白にドロップ: トップレベルとして配置
         api()?.moveBlock(blockId, lastX, lastY);
