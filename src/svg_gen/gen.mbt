@@ -348,13 +348,17 @@ fn render_empty_slot(
       "\" stroke=\"" + empty_stroke +
       "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
     )
-    // pill 左端のアダプタ (左に凸のカーブ)
-    let ax = x + 2.0
+    // pill 左端のアダプタ (左に凸の弧)
+    let ax = x
+    let ay = 4.0
+    let ah = 20.0
+    let r = ah / 2.0
     buf.write_string(
-      "<path d=\"M " + (ax + 6.0).to_string() + " 8 " +
-      "A 5 5 0 0 0 " + (ax + 6.0).to_string() + " 20\" " +
-      "fill=\"none\" stroke=\"" + empty_stroke +
-      "\" stroke-width=\"1.5\" stroke-dasharray=\"3 2\"/>",
+      "<path d=\"M " + (ax + r).to_string() + " " + ay.to_string() + " " +
+      "A " + r.to_string() + " " + r.to_string() + " 0 0 0 " +
+      (ax + r).to_string() + " " + (ay + ah).to_string() + "\" " +
+      "fill=\"rgba(160,200,255,0.15)\" stroke=\"rgba(160,200,255,0.5)\" " +
+      "stroke-width=\"1.5\"/>",
     )
   } else {
     // Statement: notch 形状 (上に凸の台形)
@@ -374,17 +378,24 @@ fn render_empty_slot(
       "\" stroke=\"" + empty_stroke +
       "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
     )
-    // top notch アダプタ (凸の台形)
-    let nx = x + 10.0
-    buf.write_string(
-      "<path d=\"M " + nx.to_string() + " 4 " +
-      "L " + (nx + 4.0).to_string() + " " + (4.0 - nh).to_string() + " " +
-      "L " + (nx + 4.0 + 12.0).to_string() + " " + (4.0 - nh).to_string() + " " +
-      "L " + (nx + 4.0 + 16.0).to_string() + " 4\" " +
-      "fill=\"none\" stroke=\"" + empty_stroke +
-      "\" stroke-width=\"1.5\" stroke-dasharray=\"3 2\"/>",
-    )
+    // top notch アダプタ (凸の台形、大きく目立つ)
+    render_notch_adapter(buf, x + 8.0, 4.0)
   }
+}
+
+///| notch アダプタ描画 (共通): 上向きの凸台形
+fn render_notch_adapter(buf : StringBuilder, x : Double, y : Double) -> Unit {
+  let ah = 8.0 // アダプタ高さ
+  let aw = 24.0 // アダプタ幅
+  let taper = 5.0 // 台形の傾き
+  buf.write_string(
+    "<path d=\"M " + x.to_string() + " " + y.to_string() + " " +
+    "L " + (x + taper).to_string() + " " + (y - ah).to_string() + " " +
+    "L " + (x + aw - taper).to_string() + " " + (y - ah).to_string() + " " +
+    "L " + (x + aw).to_string() + " " + y.to_string() + "\" " +
+    "fill=\"rgba(160,200,255,0.15)\" stroke=\"rgba(160,200,255,0.5)\" " +
+    "stroke-width=\"1.5\" stroke-linejoin=\"round\"/>",
+  )
 }
 
 ///| Statement body 内の空スロット (stmt_svg で使用)
@@ -397,8 +408,6 @@ fn render_empty_stmt_slot(
   slot_name : String,
 ) -> Unit {
   let sh = empty_h
-  let nw = 20.0
-  let nh = notch_h
   // 本体
   buf.write_string(
     "<rect class=\"empty-slot\" data-parent=\"" + parent_id +
@@ -412,15 +421,7 @@ fn render_empty_stmt_slot(
     "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
   )
   // top notch アダプタ
-  let nx = x + 10.0
-  buf.write_string(
-    "<path d=\"M " + nx.to_string() + " " + y.to_string() + " " +
-    "L " + (nx + 4.0).to_string() + " " + (y - nh).to_string() + " " +
-    "L " + (nx + 4.0 + 12.0).to_string() + " " + (y - nh).to_string() + " " +
-    "L " + (nx + 4.0 + 16.0).to_string() + " " + y.to_string() + "\" " +
-    "fill=\"none\" stroke=\"" + empty_stroke +
-    "\" stroke-width=\"1.5\" stroke-dasharray=\"3 2\"/>",
-  )
+  render_notch_adapter(buf, x + 8.0, y)
 }
 
 ///| Statement path SVG
