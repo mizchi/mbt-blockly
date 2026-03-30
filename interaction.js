@@ -197,7 +197,18 @@ export function setupInteraction(svgEl) {
       const blockId = blockEl.dataset.blockId;
       const blockType = api()?.getBlockType(blockId) || 'unknown';
 
-      // ブロックの絶対位置を計算
+      // ブロックの元の親を記録 (drop 先が同じなら移動なし扱い)
+      const parentBlockEl = blockEl.parentElement?.closest('[data-block-id]');
+      const originParentId = parentBlockEl?.dataset?.blockId || null;
+      // 元のスロット名: 親の中でこのブロックを含むスロットの data-slot
+      // or next chain の場合は data-insert-after
+      let originSlotName = null;
+      if (originParentId) {
+        // 親ブロックの empty-slot/drop-zone を見て、このブロックがどのスロットにいたか推定
+        // → 実際には DOM 構造から判定が難しいので、parent + "any slot" として記録
+        originSlotName = '__any__';
+      }
+
       const absPos = getAbsoluteTranslate(blockEl);
       const pt = svgPoint(e.clientX, e.clientY);
 
@@ -229,7 +240,8 @@ export function setupInteraction(svgEl) {
         startY: absPos.y,
         lastX: absPos.x,
         lastY: absPos.y,
-        moved: false,
+        originParentId,
+        wasTopLevel: !originParentId,
       };
 
       highlightSlots(blockType);
@@ -246,14 +258,10 @@ export function setupInteraction(svgEl) {
       const pt = svgPoint(e.clientX, e.clientY);
       const nx = pt.x - state.dragging.ox;
       const ny = pt.y - state.dragging.oy;
-      // 移動距離チェック
-      const dx = nx - state.dragging.startX;
-      const dy = ny - state.dragging.startY;
-      if (Math.hypot(dx, dy) > 5) state.dragging.moved = true;
       state.dragging.el.setAttribute('transform', `translate(${nx},${ny})`);
       state.dragging.lastX = nx;
       state.dragging.lastY = ny;
-      if (state.dragging.moved) updateSnapTarget(pt);
+      updateSnapTarget(pt);
     } else if (state.panning) {
       const dx = (e.clientX - state.panStart.x) / state.zoom;
       const dy = (e.clientY - state.panStart.y) / state.zoom;
@@ -279,8 +287,27 @@ export function setupInteraction(svgEl) {
         }
       }
 
-      // 動いてなければ何もしない (クリックのみ) → rerender で元の状態に戻す
-      if (!state.dragging.moved) {
+      // スナップ先が元の親に戻る場合 → 何も変更しない
+      const droppedBackToOrigin = (() => {
+        if (!state.nearestSlot) {
+          // スナップ先なし: トップレベルとして配置される
+          // 元がトップレベルで、位置がほぼ同じなら戻る
+          if (state.dragging.wasTopLevel) {
+            const dx = lastX - state.dragging.startX;
+            const dy = lastY - state.dragging.startY;
+            return Math.hypot(dx, dy) < 3;
+          }
+          return false;
+        }
+        // スナップ先あり: 元の親と同じブロックへのスナップなら戻る
+        const snapParent = state.nearestSlot.el?.dataset?.parent
+          || state.nearestSlot.bid
+          || state.nearestSlot.afterId
+          || null;
+        return snapParent === state.dragging.originParentId;
+      })();
+
+      if (droppedBackToOrigin) {
         clearHighlights();
         state.dragging = null;
         const savedVB = { ...state.viewBox };
