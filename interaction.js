@@ -59,6 +59,12 @@ export function setupInteraction(svgEl) {
         state.highlightedSlots.push(slot);
       }
     });
+    // ドロップゾーン (statement chain 挿入)
+    if (draggedType === 'statement') {
+      svgEl.querySelectorAll('.drop-zone').forEach(dz => {
+        state.highlightedSlots.push(dz);
+      });
+    }
   }
 
   function clearHighlights() {
@@ -150,11 +156,19 @@ export function setupInteraction(svgEl) {
       const rRect = nearestRect.getBBox();
       const rd = Math.hypot(pt.x - (rPos.x + rRect.x + rRect.width/2), pt.y - (rPos.y + rRect.y + rRect.height/2));
       const bd = Math.hypot(pt.x - nearestBottom.bx, pt.y - nearestBottom.by);
-      target = rd < bd
-        ? { type: 'slot', el: nearestRect, _isRect: true }
-        : { type: 'next', el: nearestBottom.el, bid: nearestBottom.bid, _isRect: false };
+      if (rd < bd) {
+        const isDropZone = nearestRect.classList.contains('drop-zone');
+        target = isDropZone
+          ? { type: 'insert', el: nearestRect, afterId: nearestRect.dataset.insertAfter, _isRect: true }
+          : { type: 'slot', el: nearestRect, _isRect: true };
+      } else {
+        target = { type: 'next', el: nearestBottom.el, bid: nearestBottom.bid, _isRect: false };
+      }
     } else if (nearestRect) {
-      target = { type: 'slot', el: nearestRect, _isRect: true };
+      const isDropZone = nearestRect.classList.contains('drop-zone');
+      target = isDropZone
+        ? { type: 'insert', el: nearestRect, afterId: nearestRect.dataset.insertAfter, _isRect: true }
+        : { type: 'slot', el: nearestRect, _isRect: true };
     } else if (nearestBottom) {
       target = { type: 'next', el: nearestBottom.el, bid: nearestBottom.bid, _isRect: false };
     }
@@ -271,6 +285,10 @@ export function setupInteraction(svgEl) {
         } else if (state.nearestSlot.type === 'next') {
           // bottom connector にスナップ → connectNext
           api()?.connectNext(state.nearestSlot.bid, blockId);
+          api()?.moveBlock(blockId, 0, 0);
+        } else if (state.nearestSlot.type === 'insert') {
+          // chain の間に挿入
+          api()?.insertAfter(state.nearestSlot.afterId, blockId);
           api()?.moveBlock(blockId, 0, 0);
         }
       } else {

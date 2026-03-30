@@ -9,15 +9,17 @@ extern "js" fn register_api(
   detach : (String) -> Unit,
   connect : (String, String, String) -> Unit,
   connect_next : (String, String) -> Unit,
+  insert_after : (String, String) -> Unit,
   move_block : (String, Double, Double) -> Unit,
   rerender : () -> Unit,
   get_block_type : (String) -> String,
 ) -> Unit =
-  #|(detach, connect, connectNext, moveBlock, rerender, getBlockType) => {
+  #|(detach, connect, connectNext, insertAfter, moveBlock, rerender, getBlockType) => {
   #| var o = Object.create(null);
   #| o.detach = detach;
   #| o.connect = connect;
   #| o.connectNext = connectNext;
+  #| o.insertAfter = insertAfter;
   #| o.moveBlock = moveBlock;
   #| o.rerender = rerender;
   #| o.getBlockType = getBlockType;
@@ -108,6 +110,7 @@ fn main {
       global_ws.val.connect_to_input(parent_id, slot_name, child_id)
     },
     fn(block_id, next_id) { global_ws.val.connect_next(block_id, next_id) },
+    fn(after_id, block_id) { global_ws.val.insert_after(after_id, block_id) },
     fn(block_id, x, y) { global_ws.val.move_block(block_id, x, y) },
     fn() { render() },
     fn(block_id) -> String {

@@ -99,6 +99,20 @@ pub fn Workspace::connect_next(
   block.next_id = Some(next_id)
 }
 
+/// after_id の直後に block_id を挿入 (既存の next chain を繋ぎ替え)
+pub fn Workspace::insert_after(
+  self : Workspace,
+  after_id : String,
+  block_id : String,
+) -> Unit {
+  guard self.blocks.get(after_id) is Some(after_block) else { return }
+  guard self.blocks.get(block_id) is Some(new_block) else { return }
+  // after の元の next を new_block の next に移す
+  new_block.next_id = after_block.next_id
+  // after → new_block に接続
+  after_block.next_id = Some(block_id)
+}
+
 /// ブロックを親から取り外す (スロット or next chain)
 pub fn Workspace::detach_block(self : Workspace, block_id : String) -> Unit {
   for _, parent in self.blocks {

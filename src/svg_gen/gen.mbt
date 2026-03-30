@@ -707,42 +707,54 @@ fn stmt_svg(
   }
   match next_block {
     Some(next) => {
-      // 接続レール: 左端に縦線 + ドット (連続性を表現)
       let next_y = sz.h + notch_h
       let rail_x = 6.0
-      // 縦線
+      // 接続レール
       buf.write_string(
-        "<line x1=\"" +
-        rail_x.to_string() +
-        "\" y1=\"" +
-        (sz.h - 4.0).to_string() +
-        "\" x2=\"" +
-        rail_x.to_string() +
-        "\" y2=\"" +
-        (next_y + 8.0).to_string() +
+        "<line x1=\"" + rail_x.to_string() +
+        "\" y1=\"" + (sz.h - 4.0).to_string() +
+        "\" x2=\"" + rail_x.to_string() +
+        "\" y2=\"" + (next_y + 8.0).to_string() +
         "\" stroke=\"rgba(160,200,255,0.5)\" stroke-width=\"3\" stroke-linecap=\"round\"/>",
       )
-      // 上ドット
       buf.write_string(
-        "<circle cx=\"" +
-        rail_x.to_string() +
-        "\" cy=\"" +
-        (sz.h - 1.0).to_string() +
+        "<circle cx=\"" + rail_x.to_string() +
+        "\" cy=\"" + (sz.h - 1.0).to_string() +
         "\" r=\"3.5\" fill=\"rgba(160,200,255,0.7)\"/>",
       )
-      // 下ドット
       buf.write_string(
-        "<circle cx=\"" +
-        rail_x.to_string() +
-        "\" cy=\"" +
-        (next_y + 5.0).to_string() +
+        "<circle cx=\"" + rail_x.to_string() +
+        "\" cy=\"" + (next_y + 5.0).to_string() +
         "\" r=\"3.5\" fill=\"rgba(160,200,255,0.7)\"/>",
+      )
+      // ドロップゾーン: chain の間に挿入
+      let dz_y = sz.h - 2.0
+      let dz_h = notch_h + 8.0
+      buf.write_string(
+        "<rect class=\"drop-zone\" data-insert-after=\"" + block.id +
+        "\" data-accepts=\"statement\" x=\"0\" y=\"" + dz_y.to_string() +
+        "\" width=\"" + sz.w.to_string() +
+        "\" height=\"" + dz_h.to_string() +
+        "\" rx=\"3\" fill=\"transparent\" stroke=\"none\"/>",
       )
       open_g(buf, 0.0, next_y)
       block_to_svg(next, ws, buf)
       close_g(buf)
     }
-    None => ()
+    None => {
+      // body 末尾ドロップゾーン (has_next だが next が空)
+      if block.has_next {
+        let dz_y = sz.h
+        buf.write_string(
+          "<rect class=\"drop-zone\" data-insert-after=\"" + block.id +
+          "\" data-accepts=\"statement\" x=\"0\" y=\"" + dz_y.to_string() +
+          "\" width=\"" + sz.w.to_string() +
+          "\" height=\"16\" rx=\"3\" fill=\"" + empty_fill +
+          "\" stroke=\"" + empty_stroke +
+          "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
+        )
+      }
+    }
   }
   close_g(buf)
 }
