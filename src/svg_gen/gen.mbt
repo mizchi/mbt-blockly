@@ -150,12 +150,31 @@ pub fn workspace_to_svg(
     "\" stroke-width=\"0.5\"/></pattern></defs>",
   )
   buf.write_string("<rect width=\"100%\" height=\"100%\" fill=\"url(#g)\"/>")
+  buf.write_string("<g id=\"viewport\">")
   for id in ws.top_level_blocks() {
     match ws.blocks.get(id) {
-      Some(block) => block_to_svg(block, ws, buf)
+      Some(block) => {
+        // トップレベルブロックにはドラッグ用の属性を付与
+        // block_to_svg は block.x, block.y を使うのでそのまま描画し、
+        // 外側の g にも同じ translate を置く (DnD 時に上書きされる)
+        buf.write_string(
+          "<g data-block-id=\"" +
+          block.id +
+          "\" style=\"cursor:grab;\" transform=\"translate(" +
+          block.x.to_string() +
+          "," +
+          block.y.to_string() +
+          ")\">",
+        )
+        // block_to_svg 内の g transform と二重にならないよう、
+        // 子ブロック描画時は block の x,y を相殺する
+        block_to_svg_at_origin(block, ws, buf)
+        buf.write_string("</g>")
+      }
       None => ()
     }
   }
+  buf.write_string("</g>")
   buf.write_string("</svg>")
   buf.to_string()
 }
@@ -171,6 +190,26 @@ fn block_to_svg(
     @model.Expression => expr_svg(block, ws, sz, buf)
     @model.Statement => stmt_svg(block, ws, sz, buf)
   }
+}
+
+///| トップレベル用: block.x/y を無視して原点から描画
+fn block_to_svg_at_origin(
+  block : @model.BlockInstance,
+  ws : @model.Workspace,
+  buf : StringBuilder,
+) -> Unit {
+  // block_to_svg は open_g(buf, block.x, block.y) を呼ぶ。
+  // トップレベルでは外側 g で既に translate 済みなので、
+  // ここでは逆 translate で相殺する。
+  buf.write_string(
+    "<g transform=\"translate(" +
+    (-block.x).to_string() +
+    "," +
+    (-block.y).to_string() +
+    ")\">",
+  )
+  block_to_svg(block, ws, buf)
+  buf.write_string("</g>")
 }
 
 ///|
