@@ -49,11 +49,13 @@ pub fn measure(
 ///|
 fn measure_expr(block : @model.BlockInstance, ws : @model.Workspace) -> Size {
   let label = if block.value.length() > 0 { block.value } else { block.label }
+  let is_infix = block.inputs.length() == 2 && block.label.contains("_")
   let base_w = label.length().to_double() * char_w + 24.0
   let mut w = if base_w > expr_min_w { base_w } else { expr_min_w }
   let slots : Array[(Double, Double)] = []
   if block.inputs.length() > 0 {
-    let mut cw = label.length().to_double() * char_w + 20.0
+    let op_text = if is_infix { extract_operator(block.label) } else { label }
+    let mut cw = op_text.length().to_double() * char_w + 20.0
     for slot in block.inputs {
       let child_block : @model.BlockInstance? = match slot.child_id {
         Some(id) => ws.blocks.get(id)
@@ -137,11 +139,15 @@ pub fn workspace_to_svg(
     canvas_w.to_string() +
     " " +
     canvas_h.to_string() +
-    "\" style=\"background:#f0f0f4;\">",
+    "\" style=\"background:" +
+    bg_color +
+    ";\">",
   )
   // グリッド
   buf.write_string(
-    "<defs><pattern id=\"g\" width=\"20\" height=\"20\" patternUnits=\"userSpaceOnUse\"><path d=\"M 20 0 L 0 0 0 20\" fill=\"none\" stroke=\"#ddd\" stroke-width=\"0.5\"/></pattern></defs>",
+    "<defs><pattern id=\"g\" width=\"20\" height=\"20\" patternUnits=\"userSpaceOnUse\"><path d=\"M 20 0 L 0 0 0 20\" fill=\"none\" stroke=\"" +
+    grid_color +
+    "\" stroke-width=\"0.5\"/></pattern></defs>",
   )
   buf.write_string("<rect width=\"100%\" height=\"100%\" fill=\"url(#g)\"/>")
   for id in ws.top_level_blocks() {
@@ -183,10 +189,33 @@ fn close_g(buf : StringBuilder) -> Unit {
   buf.write_string("</g>")
 }
 
-///|
-fn hsl(hue : Int, s : Int, l : Int) -> String {
-  "hsl(" + hue.to_string() + "," + s.to_string() + "%," + l.to_string() + "%)"
+///| Dark theme: muted fill
+fn block_fill(hue : Int) -> String {
+  "hsl(" + hue.to_string() + ",30%,30%)"
 }
+
+///| Dark theme: lighter stroke for contrast
+fn block_stroke(hue : Int) -> String {
+  "hsl(" + hue.to_string() + ",40%,45%)"
+}
+
+///|
+let text_color : String = "#cdd6f4"
+
+///|
+let text_dim : String = "#a6adc8"
+
+///|
+let bg_color : String = "#1e1e2e"
+
+///|
+let grid_color : String = "#313244"
+
+///|
+let empty_fill : String = "rgba(255,255,255,0.06)"
+
+///|
+let empty_stroke : String = "rgba(255,255,255,0.12)"
 
 ///|
 fn esc(s : String) -> String {
@@ -197,6 +226,39 @@ fn esc(s : String) -> String {
   out = out.replace_all(old=">"[:], new="&gt;"[:])
   out = out.replace_all(old="\""[:], new="&quot;"[:])
   out
+}
+
+///| 演算子を抽出: "_ + _" → "+"
+fn extract_operator(label : String) -> String {
+  // "_ op _" の形式から op を取り出す
+  let parts = label.split(" ")
+  let result : Array[String] = []
+  for part in parts {
+    let s = part.to_string()
+    if s != "_" && s.length() > 0 {
+      result.push(s)
+    }
+  }
+  if result.length() > 0 {
+    result[0]
+  } else {
+    label
+  }
+}
+
+///| 空スロット描画
+fn render_empty_slot(buf : StringBuilder, x : Double) -> Unit {
+  buf.write_string(
+    "<rect x=\"" +
+    x.to_string() +
+    "\" y=\"4\" width=\"" +
+    empty_w.to_string() +
+    "\" height=\"20\" rx=\"10\" fill=\"" +
+    empty_fill +
+    "\" stroke=\"" +
+    empty_stroke +
+    "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
+  )
 }
 
 ///| Statement path SVG
@@ -317,8 +379,8 @@ fn expr_svg(
   buf : StringBuilder,
 ) -> Unit {
   open_g(buf, block.x, block.y)
-  let fill = hsl(block.color_hue, 60, 50)
-  let stroke = hsl(block.color_hue, 60, 35)
+  let fill = block_fill(block.color_hue)
+  let stroke = block_stroke(block.color_hue)
   buf.write_string(
     "<path d=\"" +
     expr_path(sz.w, expr_h) +
@@ -331,18 +393,75 @@ fn expr_svg(
   let label = esc(
     if block.value.length() > 0 { block.value } else { block.label },
   )
+  // 中置演算子かどうか判定 (inputs が2つで label に _ が含まれる)
+  let is_infix = block.inputs.length() == 2 && block.label.contains("_")
   if block.inputs.is_empty() {
+    // リーフ expression (number, string, identifier)
     buf.write_string(
-      "<text x=\"16\" y=\"18\" fill=\"white\" font-size=\"13\" font-family=\"monospace\" font-weight=\"bold\">" +
+      "<text x=\"16\" y=\"18\" fill=\"" +
+      text_color +
+      "\" font-size=\"13\" font-family=\"monospace\" font-weight=\"bold\">" +
       label +
       "</text>",
     )
+  } else if is_infix {
+    // 中置演算子: [left] op [right]
+    let op = extract_operator(block.label)
+    let mut cx = 8.0
+    // left operand
+    let left_child : @model.BlockInstance? = match block.inputs[0].child_id {
+      Some(id) => ws.blocks.get(id)
+      None => None
+    }
+    match left_child {
+      Some(child) => {
+        let cs = measure(child, ws)
+        let cy = (expr_h - cs.h) / 2.0
+        open_g(buf, cx, cy)
+        block_to_svg(child, ws, buf)
+        close_g(buf)
+        cx += cs.w + 4.0
+      }
+      None => {
+        render_empty_slot(buf, cx)
+        cx += empty_w + 4.0
+      }
+    }
+    // operator text
+    buf.write_string(
+      "<text x=\"" +
+      cx.to_string() +
+      "\" y=\"18\" fill=\"" +
+      text_color +
+      "\" font-size=\"13\" font-family=\"monospace\" font-weight=\"bold\">" +
+      esc(op) +
+      "</text>",
+    )
+    cx += op.length().to_double() * char_w + 4.0
+    // right operand
+    let right_child : @model.BlockInstance? = match block.inputs[1].child_id {
+      Some(id) => ws.blocks.get(id)
+      None => None
+    }
+    match right_child {
+      Some(child) => {
+        let cs = measure(child, ws)
+        let cy = (expr_h - cs.h) / 2.0
+        open_g(buf, cx, cy)
+        block_to_svg(child, ws, buf)
+        close_g(buf)
+      }
+      None => render_empty_slot(buf, cx)
+    }
   } else {
+    // prefix expression (fn_call 等)
     let mut cx = 12.0
     buf.write_string(
       "<text x=\"" +
       cx.to_string() +
-      "\" y=\"18\" fill=\"white\" font-size=\"13\" font-family=\"monospace\" font-weight=\"bold\">" +
+      "\" y=\"18\" fill=\"" +
+      text_color +
+      "\" font-size=\"13\" font-family=\"monospace\" font-weight=\"bold\">" +
       label +
       "</text>",
     )
@@ -362,13 +481,7 @@ fn expr_svg(
           cx += cs.w + 4.0
         }
         None => {
-          buf.write_string(
-            "<rect x=\"" +
-            cx.to_string() +
-            "\" y=\"4\" width=\"" +
-            empty_w.to_string() +
-            "\" height=\"20\" rx=\"10\" fill=\"rgba(0,0,0,0.15)\" stroke=\"rgba(0,0,0,0.25)\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
-          )
+          render_empty_slot(buf, cx)
           cx += empty_w + 4.0
         }
       }
@@ -385,8 +498,8 @@ fn stmt_svg(
   buf : StringBuilder,
 ) -> Unit {
   open_g(buf, block.x, block.y)
-  let fill = hsl(block.color_hue, 60, 50)
-  let stroke = hsl(block.color_hue, 60, 35)
+  let fill = block_fill(block.color_hue)
+  let stroke = block_stroke(block.color_hue)
   buf.write_string(
     "<path d=\"" +
     stmt_path(sz.w, sz.h, block.has_next) +
@@ -397,7 +510,7 @@ fn stmt_svg(
     "\" stroke-width=\"1.5\"/>",
   )
   buf.write_string(
-    "<text x=\"12\" y=\"20\" fill=\"white\" font-size=\"13\" font-family=\"monospace\" font-weight=\"bold\">" +
+    "<text x=\"12\" y=\"20\" fill=\"" + text_color + "\" font-size=\"13\" font-family=\"monospace\" font-weight=\"bold\">" +
     esc(block.label) +
     "</text>",
   )
@@ -408,7 +521,7 @@ fn stmt_svg(
     buf.write_string(
       "<text x=\"12\" y=\"" +
       (sy + 20.0).to_string() +
-      "\" fill=\"rgba(255,255,255,0.7)\" font-size=\"11\" font-family=\"monospace\">" +
+      "\" fill=\"" + text_dim + "\" font-size=\"11\" font-family=\"monospace\">" +
       esc(slot.name) +
       "</text>",
     )
@@ -432,7 +545,7 @@ fn stmt_svg(
           empty_w.to_string() +
           "\" height=\"" +
           empty_h.to_string() +
-          "\" rx=\"4\" fill=\"rgba(0,0,0,0.15)\" stroke=\"rgba(0,0,0,0.25)\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
+          "\" rx=\"4\" fill=\"" + empty_fill + "\" stroke=\"" + empty_stroke + "\" stroke-width=\"1\" stroke-dasharray=\"4 2\"/>",
         )
     }
   }

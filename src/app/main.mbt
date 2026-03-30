@@ -4,47 +4,76 @@ fn main {
   let catalog = @model.create_block_catalog()
   let ws = @model.Workspace::new()
 
-  // デモ: fn main { let x = 1 + 2; if x == 3 { return x } }
-
   guard catalog.get("fn_def") is Some(fn_def) else { return }
-  let fn_id = ws.create_block(fn_def, 40.0, 40.0, label="fn main()", value="main")
+  guard catalog.get("let_binding") is Some(let_def) else { return }
+  guard catalog.get("binary_op") is Some(bin_def) else { return }
+  guard catalog.get("number_lit") is Some(num_def) else { return }
+  guard catalog.get("if_stmt") is Some(if_def) else { return }
+  guard catalog.get("comparison") is Some(cmp_def) else { return }
+  guard catalog.get("identifier") is Some(id_def) else { return }
+  guard catalog.get("return_stmt") is Some(ret_def) else { return }
+  guard catalog.get("fn_call") is Some(call_def) else { return }
+  guard catalog.get("for_loop") is Some(for_def) else { return }
+  guard catalog.get("string_lit") is Some(str_def) else { return }
 
-  guard catalog.get("let_binding") is Some(let_binding_def) else { return }
-  let let_id = ws.create_block(let_binding_def, 0.0, 0.0, label="let x =")
-  ws.connect_to_input(fn_id, "body", let_id)
+  // ---- fn main() { let x = 1 + 2; if x == 3 { return x } } ----
+  let fn1 = ws.create_block(fn_def, 30.0, 30.0, label="fn main()")
 
-  guard catalog.get("binary_op") is Some(binary_op_def) else { return }
-  let add_id = ws.create_block(binary_op_def, 0.0, 0.0)
-  ws.connect_to_input(let_id, "value", add_id)
+  let let1 = ws.create_block(let_def, 0.0, 0.0, label="let x =")
+  ws.connect_to_input(fn1, "body", let1)
 
-  guard catalog.get("number_lit") is Some(number_lit_def) else { return }
-  let num1_id = ws.create_block(number_lit_def, 0.0, 0.0, label="1", value="1")
-  ws.connect_to_input(add_id, "left", num1_id)
+  let add1 = ws.create_block(bin_def, 0.0, 0.0)
+  ws.connect_to_input(let1, "value", add1)
+  let n1 = ws.create_block(num_def, 0.0, 0.0, value="1")
+  ws.connect_to_input(add1, "left", n1)
+  let n2 = ws.create_block(num_def, 0.0, 0.0, value="2")
+  ws.connect_to_input(add1, "right", n2)
 
-  let num2_id = ws.create_block(number_lit_def, 0.0, 0.0, label="2", value="2")
-  ws.connect_to_input(add_id, "right", num2_id)
+  let if1 = ws.create_block(if_def, 0.0, 0.0)
+  ws.connect_next(let1, if1)
 
-  guard catalog.get("if_stmt") is Some(if_stmt_def) else { return }
-  let if_id = ws.create_block(if_stmt_def, 0.0, 0.0)
-  ws.connect_next(let_id, if_id)
+  let cmp1 = ws.create_block(cmp_def, 0.0, 0.0)
+  ws.connect_to_input(if1, "condition", cmp1)
+  let vx1 = ws.create_block(id_def, 0.0, 0.0, value="x")
+  ws.connect_to_input(cmp1, "left", vx1)
+  let n3 = ws.create_block(num_def, 0.0, 0.0, value="3")
+  ws.connect_to_input(cmp1, "right", n3)
 
-  guard catalog.get("comparison") is Some(comparison_def) else { return }
-  let cmp_id = ws.create_block(comparison_def, 0.0, 0.0)
-  ws.connect_to_input(if_id, "condition", cmp_id)
+  let ret1 = ws.create_block(ret_def, 0.0, 0.0)
+  ws.connect_to_input(if1, "then", ret1)
+  let vx2 = ws.create_block(id_def, 0.0, 0.0, value="x")
+  ws.connect_to_input(ret1, "value", vx2)
 
-  guard catalog.get("identifier") is Some(identifier_def) else { return }
-  let var_x1 = ws.create_block(identifier_def, 0.0, 0.0, label="x")
-  ws.connect_to_input(cmp_id, "left", var_x1)
+  // ---- fn add(a, b) { return a + b } ----
+  let fn2 = ws.create_block(fn_def, 500.0, 30.0, label="fn add(a, b)")
 
-  let num3_id = ws.create_block(number_lit_def, 0.0, 0.0, label="3", value="3")
-  ws.connect_to_input(cmp_id, "right", num3_id)
+  let ret2 = ws.create_block(ret_def, 0.0, 0.0)
+  ws.connect_to_input(fn2, "body", ret2)
 
-  guard catalog.get("return_stmt") is Some(return_stmt_def) else { return }
-  let ret_id = ws.create_block(return_stmt_def, 0.0, 0.0)
-  ws.connect_to_input(if_id, "then", ret_id)
+  let add2 = ws.create_block(bin_def, 0.0, 0.0)
+  ws.connect_to_input(ret2, "value", add2)
+  let va = ws.create_block(id_def, 0.0, 0.0, value="a")
+  ws.connect_to_input(add2, "left", va)
+  let vb = ws.create_block(id_def, 0.0, 0.0, value="b")
+  ws.connect_to_input(add2, "right", vb)
 
-  let var_x2 = ws.create_block(identifier_def, 0.0, 0.0, label="x")
-  ws.connect_to_input(ret_id, "value", var_x2)
+  // ---- fn greet(name) { let msg = "Hello, " + name; println(msg) } ----
+  let fn3 = ws.create_block(fn_def, 30.0, 380.0, label="fn greet(name)")
+
+  let let2 = ws.create_block(let_def, 0.0, 0.0, label="let msg =")
+  ws.connect_to_input(fn3, "body", let2)
+
+  let concat = ws.create_block(bin_def, 0.0, 0.0)
+  ws.connect_to_input(let2, "value", concat)
+  let hello = ws.create_block(str_def, 0.0, 0.0, value="\"Hello, \"")
+  ws.connect_to_input(concat, "left", hello)
+  let vname = ws.create_block(id_def, 0.0, 0.0, value="name")
+  ws.connect_to_input(concat, "right", vname)
+
+  let call1 = ws.create_block(call_def, 0.0, 0.0, label="println()")
+  ws.connect_next(let2, call1)
+  let vmsg = ws.create_block(id_def, 0.0, 0.0, value="msg")
+  ws.connect_to_input(call1, "arg0", vmsg)
 
   // SVG レンダリング
   let top_blocks = ws.top_level_blocks()
@@ -59,14 +88,14 @@ fn main {
   let grid_bg = @element.svg_rect(
     width="100%",
     height="100%",
-    fill="#f0f0f4",
+    fill="#1e1e2e",
   )
 
   let root = @element.svg(
     width="100%",
     height="100%",
-    viewBox="0 0 800 600",
-    style="background: #f0f0f4;",
+    viewBox="0 0 1000 700",
+    style="background: #1e1e2e;",
     [grid_bg, @element.svg_g(id="blocks", block_nodes)],
   )
 
