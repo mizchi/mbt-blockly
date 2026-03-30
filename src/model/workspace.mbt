@@ -16,6 +16,8 @@ pub fn Workspace::create_block(
   def : BlockDef,
   x : Double,
   y : Double,
+  label? : String,
+  value? : String,
 ) -> String {
   let id = self.gen_id()
   // inputs を deep copy
@@ -28,10 +30,18 @@ pub fn Workspace::create_block(
       }
     },
   )
+  let actual_label = match label {
+    Some(l) => l
+    None => def.label
+  }
+  let actual_value = match value {
+    Some(v) => v
+    None => ""
+  }
   let block = BlockInstance::{
     id,
     type_id: def.type_id,
-    label: def.label,
+    label: actual_label,
     color_hue: def.color_hue,
     connector: def.connector,
     inputs,
@@ -39,10 +49,28 @@ pub fn Workspace::create_block(
     next_id: None,
     x,
     y,
-    value: "",
+    value: actual_value,
   }
   self.blocks[id] = block
   id
+}
+
+/// ブロックのラベルと値を更新
+pub fn Workspace::update_block(
+  self : Workspace,
+  block_id : String,
+  label? : String,
+  value? : String,
+) -> Unit {
+  guard self.blocks.get(block_id) is Some(block) else { return }
+  match label {
+    Some(l) => block.label = l
+    None => ()
+  }
+  match value {
+    Some(v) => block.value = v
+    None => ()
+  }
 }
 
 /// ブロックを入力スロットに接続
@@ -52,7 +80,7 @@ pub fn Workspace::connect_to_input(
   slot_name : String,
   child_id : String,
 ) -> Unit {
-  guard let Some(parent) = self.blocks[parent_id] else { _ => return }
+  guard self.blocks.get(parent_id) is Some(parent) else { return }
   for slot in parent.inputs {
     if slot.name == slot_name {
       slot.child_id = Some(child_id)
@@ -67,7 +95,7 @@ pub fn Workspace::connect_next(
   block_id : String,
   next_id : String,
 ) -> Unit {
-  guard let Some(block) = self.blocks[block_id] else { _ => return }
+  guard self.blocks.get(block_id) is Some(block) else { return }
   block.next_id = Some(next_id)
 }
 

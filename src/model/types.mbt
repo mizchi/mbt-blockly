@@ -11,7 +11,7 @@ pub enum ConnectorType {
   Statement
   /// 式 (expression): 左に値接続 (親のスロットに嵌まる)
   Expression
-}
+} derive(Show)
 
 /// 入力スロットの定義
 pub struct InputSlot {
@@ -42,7 +42,7 @@ pub struct BlockDef {
 pub struct BlockInstance {
   id : String
   type_id : String
-  label : String
+  mut label : String
   color_hue : Int
   connector : ConnectorType
   inputs : Array[InputSlot]
